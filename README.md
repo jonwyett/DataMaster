@@ -6,7 +6,7 @@ Class for managing recordset-style data within JS
 - search the data
 - modify cells
 - add/remove rows/columns
-- retrive an individual column or row
+- retrieve an individual column or row
 - convert between various data styles (see below)
 - convert to csv
 - reorder, rename and limit the columns
