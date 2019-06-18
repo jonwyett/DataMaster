@@ -2,21 +2,21 @@
 Class for managing recordset-style data within JS
 
 ## Types of things you can do
--sort the data
--search the data
--modify cells
--add/remove rows/columns
--retrive an individual column or row
--convert between various data styles (see below)
--convert to csv
--reorder, rename and limit the columns
--sum rows/columns
--pivot the data, rows become columns
+*sort the data
+*search the data
+*modify cells
+*add/remove rows/columns
+*retrive an individual column or row
+*convert between various data styles (see below)
+*convert to csv
+*reorder, rename and limit the columns
+*sum rows/columns
+*pivot the data, rows become columns
 
 ## Data Styles
 This class uses the following data styles:
 
-# Recordset
+### Recordset
 ```
 var recordset = [
     {"title":"Thing one", "silly":false, "value":7},
@@ -34,7 +34,7 @@ var table = [
 ]
 ```
 
-# RecordTable
+### RecordTable
 ```
 var recordTable = {
     "fields": ["title","silly","value":7],
