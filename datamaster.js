@@ -3,7 +3,7 @@ var DataMaster = function(data, fields) {
     //and a field listing as an array. Essentially it's a compressed recordset.
     //It is meant to simplify working with data output from a database, so it assumes that all rows
     //have the same number of columns.
-    //Here is a comparison of "table", "rocordset" and "recordtable" data syles:
+    //Here is a comparison of "table", "recordset" and "recordtable" data styles:
     /* 
         table = [
             [1, 'Anna', true],
@@ -27,7 +27,7 @@ var DataMaster = function(data, fields) {
 
     //Params:
     /*
-        data: excepts either a table, recorsdset or recordtable
+        data: excepts either a table, recordset or recordtable
         fields: (array), the names of the fields.
             Will overwrite any exiting field names if data is a recordset
     */
@@ -54,7 +54,7 @@ var DataMaster = function(data, fields) {
                 } else {
                     //since the first row is not an array, assume a valid recordset
                     var rTable = recordsetToRecordTable(data); //create a recordtable from the data
-                    _table = rTable.table; //set the _table to the table part (will not be a refernce to the original data)
+                    _table = rTable.table; //set the _table to the table part (will not be a reference to the original data)
                     createFields(); //create default fields
                     createFields(rTable.fields); //create the fields based on the fields part
                     if (fields) { createFields(fields); } //overwrite recordset fields with potentially provided fields.
@@ -106,7 +106,7 @@ var DataMaster = function(data, fields) {
         //passing a shorter list of fields then their are columns but still have a value 
         //for each column
         if (typeof fields === 'undefined') {
-            //reset the internal fields arrray
+            //reset the internal fields array
             _fields = [];
             for (var i=0; i<_table[0].length; i++) {
                 _fields.push(i);
@@ -192,16 +192,16 @@ var DataMaster = function(data, fields) {
         return res;
     }
 
-    function getTableColumn(table, column, distict) {
+    function getTableColumn(table, column, distinct) {
         //returns a single column from a table
         /* Params:
             -column: (num), the index of the column to return
-            -distict: (bool), no duplicates
+            -distinct: (bool), no duplicates
         */
 
         function itemInList(list, item) {
             //checks to see if an item is in a list, such as a particular string
-            //this looks for a soft equivelance, so 1 = '1' etc
+            //this looks for a soft equivalence, so 1 = '1' etc
             /* Params:
                 -list: array[], the list of things to check against
                 -item: the thing we're checking for
@@ -221,7 +221,7 @@ var DataMaster = function(data, fields) {
         try {
             //push the column into an Array, row by row
             for (var row=0; row<table.length; row++) {
-                if (distict) {
+                if (distinct) {
                     //if distinct, see if the item is already in the col array
                     if (!itemInList(col, table[row][column])) {
                         col.push(table[row][column]); //if not then go ahead and push
@@ -476,7 +476,7 @@ var DataMaster = function(data, fields) {
      * @param {number} index - The row index
      * @param {('array'|'table'|'recordset'|'recordtable'|'object')} [style='array'] - The return type
      *      NOTE: 'object' returns a single object {}, 'recordset' returns [{}]
-     * @returns {Object} Varius types
+     * @returns {Object} Various types
      */
     this.getRow = function(index, style) {
         //returns a single row as an array.
@@ -525,7 +525,7 @@ var DataMaster = function(data, fields) {
         //get the index of the field
         var index = findFieldIndex(_fields, field);
         if (index !== false) {
-            var primer; //this is the function to apply to each row to determin sort order
+            var primer; //this is the function to apply to each row to determine sort order
             if (isNaN(_table[0][index])) { //not a number, not even a string representation
                 primer = function(a){ return a.toUpperCase(); }; //convert everything to uppercase
             } else {
@@ -583,7 +583,7 @@ var DataMaster = function(data, fields) {
         for (var r=0; r<_table.length; r++) {
             if (searchIndex) { //only search the given field
                 //we're going to use a non-cased search. I can't think of a reason why we would want to 
-                //only search in a case sensitive fasion, but that would be easy enough to add
+                //only search in a case sensitive fashion, but that would be easy enough to add
                 //in the same vein, numbers and strings will be treated the same. 45='45'
                 if (_table[r][searchIndex].toString().toLowerCase().search(new RegExp(options.query,'i')) > -1) {
                     found.push(r); //just save the row index
@@ -597,7 +597,7 @@ var DataMaster = function(data, fields) {
             }
         }
 
-        //convert the found array into the various types of return stuctures the user may want.
+        //convert the found array into the various types of return structures the user may want.
         var i;
         if (options.style === 'index') {
             return found; //just return the 
@@ -674,7 +674,7 @@ var DataMaster = function(data, fields) {
             }
 
             if (reorder) {
-                //create an array of the sencond row of the fieldmap
+                //create an array of the second row of the fieldmap
                 var list = [];
                 for (var l=0; l<fieldMap.length; l++) { list.push(fieldMap[l][1]); }
                 _self.reorder(list);
@@ -710,7 +710,7 @@ var DataMaster = function(data, fields) {
     /**
      * Adds a new column to the DataMaster
      * @param {string} name - The column/field name
-     * @param {Object} [data] - The data to add. undifined will add nulls
+     * @param {Object} [data] - The data to add. undefined will add nulls
      * @param {string|number} [location] - Index or fieldname to place the column.
      *  Will shift existing columns over. NOTE: undefined will place column at the end.
      * @returns {Object} this
@@ -794,7 +794,7 @@ var DataMaster = function(data, fields) {
                 //prefer null to undefined?
                 for (var c=0; c<clean.length; c++) { clean[c] = null; } 
                 
-                //fill the array from the fieldIndexes of the passed object inthe proper locations
+                //fill the array from the fieldIndexes of the passed object in the proper locations
                 Object.keys(data).forEach(function(key) {
                     var index = findFieldIndex(_fields, key);
                     if (index !== false) {
