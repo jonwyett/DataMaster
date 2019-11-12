@@ -1,3 +1,16 @@
+ /**
+ * Creates a DataMaster object
+ * 
+ * @param {(object|string)} data - Recordtable, Recordset, Table, CSV
+ * @param {(string[]|boolean)} fields - Array of fieldnames or true to use the first row as fieldnames
+ * @example
+ *  var data = [
+ *      ['col1','col2','col3'],
+ *      ['a','b','c'],
+ *      [1,2,3]
+ *  ];  
+ *  var myData = new DataMaster(data,true);
+ */
 var DataMaster = function(data, fields) {
     //A recordtable is a data structure consisting of data in a "table" (an array of arrays: [[]])
     //and a field listing as an array. Essentially it's a compressed recordset.
@@ -50,9 +63,21 @@ var DataMaster = function(data, fields) {
                 if (Array.isArray(data[0])) {
                     _table = copy(data); //make a copy of the data
                     createFields(); //create default fields
-                    if (fields) { createFields(fields); } //create the fields based on the passed fieldnames
-                } else {
-                    //since the first row is not an array, assume a valid recordset
+                    if (Array.isArray(fields)) { createFields(fields); } //create the fields based on the passed fieldnames
+                    else if (fields === true) { //when set explicitly to true, the first row is treated as the fieldnames
+                        createFields(_table[0]); //use the first row as the field names
+                        _table.splice(0, 1); //remove the first row since it's actually the field names
+                    }
+                } else if (typeof data === 'string') {
+                    _table = csvToTable(data);
+                    createFields(); //create default fields
+                    if (Array.isArray(fields)) { createFields(fields); } //create the fields based on the passed fieldnames
+                    else if (fields === true) { //when set explicitly to true, the first row is treated as the fieldnames
+                        createFields(_table[0]); //use the first row as the field names
+                        _table.splice(0, 1); //remove the first row since it's actually the field names
+                    }
+                } else { //since the first row is not an array or string,  assume a valid recordset
+                    
                     var rTable = recordsetToRecordTable(data); //create a recordtable from the data
                     _table = rTable.table; //set the _table to the table part (will not be a reference to the original data)
                     createFields(); //create default fields
@@ -67,6 +92,109 @@ var DataMaster = function(data, fields) {
 
     /******* INTERNAL FUNCTIONS **********************************************************/
 
+    function csvToTable(csv) {
+        //create the recordtable
+        var table = [];
+    
+        var sep = ','; //the separator char
+        var cr = '\r\n'; //the carriage return char
+        
+        var cell = ''; //the cell buffer
+        var row = []; //the row buffer
+        var started = false; //have we started reading a cell yet
+        var protectedMode = false; //is the cell surrounded by quotes.
+        var cursor = 0; //loop var
+    
+        function isChar(str) {
+            //this is just a helper function to make the following loop cleaner
+            //char is the string you want to test against, it's meant to allow for testing
+            //of multiple char strings that should be treated as a single char
+            //it will use the previously declared csv and cursor vars and auto-advance
+            //the cursor by the length your testing against if the match is found
+            
+            var test = '';
+            var l = str.length;
+            //for each char in the str, create a corresponding test string from the csv
+            for (var i=0; i<l; i++) { test += csv[cursor+i]; }
+    
+            if (str === test) {
+                cursor += l;
+                return true;
+            } else {
+                return false;
+            }
+        }
+    
+        while (cursor<csv.length) {
+            //we are going to reset all the vars on state change just to be safe
+            if (started) { //we've entered the started state
+                if (protectedMode) { //we're in protected mode
+                    if (isChar('\"' + sep)) { 
+                        row.push(cell);
+                        cell = '';
+                        started = false;
+                        protectedMode = false;
+                    } else if (isChar('"' + cr)) {
+                        row.push(cell);
+                        cell = '';
+                        table.push(row);
+                        row = [];
+                        started = false;
+                        protectedMode = false;
+                    } else if (isChar('\"\"')) { //double quotes read as single quotes
+                       cell += '"';
+                    } else { //we found a general cell char
+                        cell += csv[cursor];
+                        cursor++;
+                    }
+                } else { //not protected mode
+                    if (isChar(sep)) { //found a separator
+                        row.push(cell);
+                        cell = '';
+                        started = false;
+                        protectedMode = false;
+                    } else if (isChar(cr)) { //found a carriage return
+                        row.push(cell);
+                        cell = '';
+                        table.push(row);
+                        row = [];
+                        started = false;
+                        protectedMode = false;
+                    } else if (isChar('""')) { //double quotes read as single quotes
+                        cell += '"';
+                    } else {
+                        cell += csv[cursor];
+                        cursor++;
+                    }
+                }
+            } else { //we are not yet reading a cell
+                //remember that if isChar returns true it auto-increments the cursor
+                if (isChar('"')) {//first check for a quote to see if we are in protected mode.
+                    protectedMode = true;
+                    started = true;
+                } else if (isChar(sep)) { //we found a separator char
+                    row.push(cell);
+                    cell = '';
+                    started = false;
+                    protectedMode = false;
+                } else if (isChar(cr)) { //we found a carriage return
+                    table.push(row);
+                    row = [];
+                    cell = '';
+                    started = false;
+                    protectedMode = false;    
+                } else { //we've found something else, so start the cell
+                    cell = csv[cursor];
+                    started = true;
+                    protectedMode = false;  
+                    cursor++; 
+                }
+            }
+        } 
+    
+        return table;
+    }
+    
     function sortBy(field, desc, primer) {
         
         var key = primer ? 
@@ -103,13 +231,13 @@ var DataMaster = function(data, fields) {
         //creates fieldnames based on the passed fields
         //if fields is undefined then creates an array of indexes: [0,1,2,3...]
         //running this twice, once with no fields and then again with fields will allow
-        //passing a shorter list of fields then their are columns but still have a value 
+        //passing a shorter list of fields then there are columns but still have a value 
         //for each column
         if (typeof fields === 'undefined') {
             //reset the internal fields array
             _fields = [];
             for (var i=0; i<_table[0].length; i++) {
-                _fields.push(i);
+                _fields.push(i.toString());
             }    
         } else {
             var max = (_fields.length < fields.length) ? _fields.length : fields.length; //get the shorter of the two
@@ -253,6 +381,8 @@ var DataMaster = function(data, fields) {
         }
         return res;
     }
+
+    
 
     function createCSV(data, options) {
         //creates a CSV string from the table data 
@@ -600,7 +730,7 @@ var DataMaster = function(data, fields) {
         //convert the found array into the various types of return structures the user may want.
         var i;
         if (options.style === 'index') {
-            return found; //just return the 
+            return found; //just return the list of row indexes 
         }  else {
             //generate a table from the found indexes based on the returnIndex
             res = [];
@@ -1030,3 +1160,8 @@ var DataMaster = function(data, fields) {
     };
 
 }; //END DATAMASTER 
+
+if (typeof window === 'undefined') {
+    exports.DataMaster = DataMaster;
+
+}
