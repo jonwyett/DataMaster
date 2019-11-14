@@ -1,0 +1,26 @@
+{
+  "name": "jw-datamaster",
+  "version": "1.0.0",
+  "description": "Class for managing database-style data",
+  "main": "datamaster.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jonwyett/DataMaster.git"
+  },
+  "keywords": [
+    "data",
+    "manipulate",
+    "search",
+    "convert",
+    "csv"
+  ],
+  "author": "Jonathan Wyett",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/jonwyett/DataMaster/issues"
+  },
+  "homepage": "https://github.com/jonwyett/DataMaster#readme"
+}
