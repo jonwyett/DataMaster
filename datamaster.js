@@ -2,7 +2,7 @@
  * Creates a DataMaster object
  * 
  * @param {(object|string)} data - Recordtable, Recordset, Table, CSV
- * @param {(string[]|boolean)} fields - Array of fieldnames or true to use the first row as fieldnames
+ * @param {(string[]|boolean)} [fields] - Array of fieldnames or true to use the first row as fieldnames
  * @example
  *  var data = [
  *      ['col1','col2','col3'],
@@ -684,7 +684,7 @@ var DataMaster = function(data, fields) {
     /**
      * Searches the DataMaster
      * @param {Object} options
-     * @param {string} options.query - The value to search for
+     * @param {string|number} options.query - The value to search for
      * @param {string|number} [options.searchField] -The field to search in, undefined for all
      * @param {string|number} [options.return] - The field to return
      * @param {('table'|'recordset'|'recordtable'|'index'|'array')} [options.style='index']
@@ -782,6 +782,23 @@ var DataMaster = function(data, fields) {
         
         return this; //for chaining  
     };   
+
+    /**
+     * Limits the DataMaster based on a search result
+     * @param {Object} options
+     * @param {string|number} options.query - The value to search for
+     * @param {string|number} [options.searchField] -The field to search in, undefined for all
+     * 
+     */
+    this.limit = function(options) {
+        _table = _self.search({
+            query: options.query,
+            searchField: options.searchField,
+            style: 'table'
+        });
+
+        return this; //for chaining
+    };
 
     /**
      * Modifies existing field names;
