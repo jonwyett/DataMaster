@@ -27,19 +27,18 @@ Class for managing database-style data within JS
 
 ```
 //create the original DataMaster from the mySql JSON data
-var sqlDM = new jwdm.DataMaster(sqlData);
+var myDM = new jwdm.DataMaster(sqlData);
 
-//create a new DataMaster object from the results of a search of the original data
-var myDM = new jwdm.DataMaster(sqlDM.search({
+// Limit the data in the datamaster based on a search
+myDM.limit({
     query: 123,
-    searchField: 'clientID',
-    style: 'recordtable'
+    searchField: 'clientID'
 }));
 
 //modify cell values in place based on the results of a search
 myDM.search({
     query: 'special_order', //search for this text
-    field: 'orderType', //in this column
+    searchField: 'orderType', //in this column
     style: 'index' //return an array of the row indexes that match
 }).forEach(function(index) { //loop over the array 
     myDM.modifyCell(index, 'orderType', 'Special Order'); //modify the cell
@@ -145,6 +144,10 @@ var recordTable = {
 - ### search()
 
     Searches the data. You can search the whole table or just a particular field. You can also get the results in a variety of formats from just an array of matching row indexes to a full RecordTable that only includes the row data from where matches were found.
+
+- ### limit()
+
+   Same as the search() function but limits the datamaster based on the result instead of returning the results.
 
 - ### setFieldNames()
 
