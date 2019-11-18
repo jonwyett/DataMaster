@@ -684,7 +684,7 @@ var DataMaster = function(data, fields) {
     /**
      * Searches the DataMaster
      * @param {Object} options
-     * @param {string|number} options.query - The value to search for
+     * @param {string|number|function} options.query - The value to search for
      * @param {string|number} [options.searchField] -The field to search in, undefined for all
      * @param {string|number} [options.return] - The field to return
      * @param {('table'|'recordset'|'recordtable'|'index'|'array')} [options.style='index']
@@ -715,14 +715,27 @@ var DataMaster = function(data, fields) {
                 //we're going to use a non-cased search. I can't think of a reason why we would want to 
                 //only search in a case sensitive fashion, but that would be easy enough to add
                 //in the same vein, numbers and strings will be treated the same. 45='45'
-                if (_table[r][searchIndex].toString().toLowerCase().search(new RegExp(options.query,'i')) > -1) {
-                    found.push(r); //just save the row index
-                }   
+                if (typeof options.query === 'function') {
+                    if (options.query(_table[r][searchIndex])) {
+                        found.push(r);
+                    }
+                } else {
+                    if (_table[r][searchIndex].toString().toLowerCase().search(new RegExp(options.query,'i')) > -1) {
+                        found.push(r); //just save the row index
+                    }  
+                } 
             } else {
                 for (var c=0; c<_table[r].length; c++) {
-                    if (_table[r][c].toString().toLowerCase().search(new RegExp(options.query,'i')) > -1) {
-                        found.push(r); //just save the row index
-                    }     
+                    if (typeof options.query === 'function') {
+                        if (options.query(_table[r][c])) {
+                            found.push(r);
+                            break;
+                        }
+                    } else {
+                        if (_table[r][c].toString().toLowerCase().search(new RegExp(options.query,'i')) > -1) {
+                            found.push(r); //just save the row index
+                        }   
+                    }  
                 }
             }
         }
@@ -786,7 +799,7 @@ var DataMaster = function(data, fields) {
     /**
      * Limits the DataMaster based on a search result
      * @param {Object} options
-     * @param {string|number} options.query - The value to search for
+     * @param {string|number|function} options.query - The value to search for
      * @param {string|number} [options.searchField] -The field to search in, undefined for all
      * 
      */

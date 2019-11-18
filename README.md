@@ -143,7 +143,7 @@ var recordTable = {
 
 - ### search()
 
-    Searches the data. You can search the whole table or just a particular field. You can also get the results in a variety of formats from just an array of matching row indexes to a full RecordTable that only includes the row data from where matches were found.
+    Searches the data. You can search the whole table or just a particular field. You can also get the results in a variety of formats from just an array of matching row indexes to a full RecordTable that only includes the row data from where matches were found. You may also pass a function that returns true for the results you want.
 
 - ### limit()
 
