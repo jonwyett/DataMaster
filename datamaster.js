@@ -1,8 +1,10 @@
  /**
  * Creates a DataMaster object
  * 
- * @param {(object|string)} data - Recordtable, Recordset, Table, CSV
+ * @param {(object|string)} data - Recordtable, Recordset, Table, CSV, TSV
  * @param {(string[]|boolean)} [fields] - Array of fieldnames or true to use the first row as fieldnames
+ * @param {object} [options] - Various advanced options
+ * @param {boolean} [options.isTSV] - Tab Separated Values are being provided as the data
  * @example
  *  var data = [
  *      ['col1','col2','col3'],
@@ -11,7 +13,7 @@
  *  ];  
  *  var myData = new DataMaster(data,true);
  */
-var DataMaster = function(data, fields) {
+var DataMaster = function(data, fields, options) {
     //A recordtable is a data structure consisting of data in a "table" (an array of arrays: [[]])
     //and a field listing as an array. Essentially it's a compressed recordset.
     //It is meant to simplify working with data output from a database, so it assumes that all rows
@@ -50,7 +52,8 @@ var DataMaster = function(data, fields) {
     var _table = [];
     var _fields = [];
     this.valid = true; //this will be set to false if invalid data is passed in the constructor
-    
+    if (typeof options === 'undefined') { options = {}; }
+
     (function startup() {
         //determine if a table or recordset was passed
         try {
@@ -69,7 +72,7 @@ var DataMaster = function(data, fields) {
                         _table.splice(0, 1); //remove the first row since it's actually the field names
                     }
                 } else if (typeof data === 'string') {
-                    _table = csvToTable(data);
+                    _table = csvToTable(data, options.isTSV);
                     createFields(); //create default fields
                     if (Array.isArray(fields)) { createFields(fields); } //create the fields based on the passed fieldnames
                     else if (fields === true) { //when set explicitly to true, the first row is treated as the fieldnames
@@ -92,11 +95,12 @@ var DataMaster = function(data, fields) {
 
     /******* INTERNAL FUNCTIONS **********************************************************/
 
-    function csvToTable(csv) {
+    function csvToTable(csv, isTSV) {
         //create the recordtable
         var table = [];
     
         var sep = ','; //the separator char
+        if (isTSV) { sep = '\t'; }
         var cr = '\r\n'; //the carriage return char
         
         var cell = ''; //the cell buffer
