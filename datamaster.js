@@ -651,26 +651,39 @@ var DataMaster = function(data, fields, options) {
 
     /**
      * Sorts the DataMaster
-     * @param {string|number} field - The field to sort by
+     * @param {string|number} field - The field to sort by, if null all fields will be sorted in order
      * @param {boolean} [desc] - Sort descending
      * @returns {Object} this
      */
     this.sort = function(field, desc) {        
-        //get the index of the field
-        var index = findFieldIndex(_fields, field);
-        if (index !== false) {
-            var primer; //this is the function to apply to each row to determine sort order
-            if (isNaN(_table[0][index])) { //not a number, not even a string representation
-                primer = function(a){ return a.toUpperCase(); }; //convert everything to uppercase
-            } else {
-                primer = parseFloat; //so now number strings we be evaluated as numbers
+        
+        if (field) {
+            sortField(field);
+        } else {
+            for (var i=_fields.length-1; i>=0; i--) {
+                sortField(_fields[i]);
             }
-
-            _table.sort(sortBy(index, desc, primer));
         }
 
+        function sortField(fieldName) {
+            //get the index of the field
+            var index = findFieldIndex(_fields, fieldName);
+            if (index !== false) {
+                var primer; //this is the function to apply to each row to determine sort order
+                if (isNaN(_table[0][index])) { //not a number, not even a string representation
+                    primer = function(a){ return a.toUpperCase(); }; //convert everything to uppercase
+                } else {
+                    primer = parseFloat; //so now number strings we be evaluated as numbers
+                }
+
+                _table.sort(sortBy(index, desc, primer));
+            }
+        }
+        
         return this;
     };
+
+
 
     /**
      * Reorders the DataMaster in place and removes fields
@@ -724,7 +737,7 @@ var DataMaster = function(data, fields, options) {
                         found.push(r);
                     }
                 } else {
-                    if (_table[r][searchIndex].toString().toLowerCase().search(new RegExp(options.query,'i')) > -1) {
+                    if (_table[r][searchIndex].toString().toLowerCase().search(new RegExp(options.query.toString(),'i')) > -1) {
                         found.push(r); //just save the row index
                     }  
                 } 
@@ -736,7 +749,7 @@ var DataMaster = function(data, fields, options) {
                             break;
                         }
                     } else {
-                        if (_table[r][c].toString().toLowerCase().search(new RegExp(options.query,'i')) > -1) {
+                        if (_table[r][c].toString().toLowerCase().search(new RegExp(options.query.toString(),'i')) > -1) {
                             found.push(r); //just save the row index
                         }   
                     }  
