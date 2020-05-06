@@ -671,7 +671,13 @@ var DataMaster = function(data, fields, options) {
             if (index !== false) {
                 var primer; //this is the function to apply to each row to determine sort order
                 if (isNaN(_table[0][index])) { //not a number, not even a string representation
-                    primer = function(a){ return a.toUpperCase(); }; //convert everything to uppercase
+                    primer = function(a) { 
+                        try {
+                            return a.toUpperCase(); //convert everything to uppercase
+                        } catch(e) {
+                            return a; //or just return a if you can't convert.
+                        }
+                    }; 
                 } else {
                     primer = parseFloat; //so now number strings we be evaluated as numbers
                 }
@@ -1210,5 +1216,7 @@ var DataMaster = function(data, fields, options) {
 
 if (typeof window === 'undefined') {
     exports.DataMaster = DataMaster;
-
+} else {
+    //convenience variable
+    var jwdm = DataMaster;
 }
