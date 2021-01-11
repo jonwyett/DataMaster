@@ -511,6 +511,14 @@ var DataMaster = function(data, fields, options) {
     };
 
     /**
+     * Exports a string representation of the DataMaster
+     * @param {boolean} [consoleMode=false] - true is meant for console output false is meant for html
+     * 
+     * @returns {string} String representation of the DataMaster
+     */
+    this.print = _self.debug; //this is just an alternate way to debug/print
+
+    /**
      * Copy the DataMaster into a new object
      * @returns {Object} {fields:[], table[]}
      */
@@ -733,8 +741,9 @@ var DataMaster = function(data, fields, options) {
         var found = []; //search generates a list of row indexes 
         var res;
 
+        var tempVal = '';
         for (var r=0; r<_table.length; r++) {
-            if (searchIndex) { //only search the given field
+            if (searchIndex || searchIndex === 0) { //only search the given field
                 //we're going to use a non-cased search. I can't think of a reason why we would want to 
                 //only search in a case sensitive fashion, but that would be easy enough to add
                 //in the same vein, numbers and strings will be treated the same. 45='45'
@@ -743,7 +752,9 @@ var DataMaster = function(data, fields, options) {
                         found.push(r);
                     }
                 } else {
-                    if (_table[r][searchIndex].toString().toLowerCase().search(new RegExp(options.query.toString(),'i')) > -1) {
+                    tempVal = _table[r][searchIndex];
+                    if (tempVal === null) { tempVal = ''; }
+                    if (tempVal.toString().toLowerCase().search(new RegExp(options.query.toString(),'i')) > -1) {
                         found.push(r); //just save the row index
                     }  
                 } 
@@ -755,7 +766,9 @@ var DataMaster = function(data, fields, options) {
                             break;
                         }
                     } else {
-                        if (_table[r][c].toString().toLowerCase().search(new RegExp(options.query.toString(),'i')) > -1) {
+                        tempVal = _table[r][c];
+                        if (tempVal === null) { tempVal = ''; }
+                        if (tempVal.toString().toLowerCase().search(new RegExp(options.query.toString(),'i')) > -1) {
                             found.push(r); //just save the row index
                         }   
                     }  
@@ -816,8 +829,47 @@ var DataMaster = function(data, fields, options) {
             } 
         }
         
+        //Will this ever be reached?
         return this; //for chaining  
     };   
+
+    /**
+     * Replaces data in the DataMaster based on a search
+     * @param {Object} options
+     * @param {string|number|function} options.query - The value to search for
+     * @param {string|number} options.newValue- The replacement value
+     * @param {string|number} [options.searchField] -The field to search in, undefined for all
+     * @returns {Object} Various types
+     */
+    this.replace = function(options) {
+        //this is a convenience function wrapper for the internal search and modifyCell functions
+        //setup some defaults and some requirements
+        if (typeof options === 'undefined') { return null; }
+        if (typeof options.query === 'undefined') { return null; }
+        if (typeof options.newValue === 'undefined') { return null; }
+        
+        if (typeof options.searchField !== 'undefined') {
+            _self.search({
+                query: options.query,
+                searchField: options.searchField,
+                style: 'index' //return an array of the row indexes that match
+            }).forEach(function(index) { //loop over the array 
+                _self.modifyCell(index, options.searchField, options.newValue); //modify the cell
+            });
+        } else {
+            _fields.forEach(function(field) {
+                _self.search({
+                    query: options.query,
+                    searchField: field,
+                    style: 'index' //return an array of the row indexes that match
+                }).forEach(function(index) { //loop over the array 
+                    _self.modifyCell(index, field, options.newValue); //modify the cell
+                });
+            });
+        }
+        
+        return this; //for chaining 
+    };
 
     /**
      * Limits the DataMaster based on a search result

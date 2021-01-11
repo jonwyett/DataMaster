@@ -25,7 +25,7 @@ Class for managing database-style data within JS
 6) Add the value "Total" next to the summed column
 6) Export the data to a CSV file
 
-```
+``` Javascript
 //create the original DataMaster from the mySql JSON data
 var myDM = new jwdm.DataMaster(sqlData);
 
@@ -35,7 +35,14 @@ myDM.limit({
     searchField: 'clientID'
 }));
 
-//modify cell values in place based on the results of a search
+//replace cell values
+myDm.replace({
+    query: 'special_order', //search for this text
+    newValue: 'Special Order', //replace with this text
+    searchField: 'orderType', //in this column only    
+});
+
+//Or do it manually
 myDM.search({
     query: 'special_order', //search for this text
     searchField: 'orderType', //in this column
@@ -43,6 +50,8 @@ myDM.search({
 }).forEach(function(index) { //loop over the array 
     myDM.modifyCell(index, 'orderType', 'Special Order'); //modify the cell
 });
+
+//Or do the same thing with the 
 
 //reorder, limit and rename the columns
 myDM.modifyFieldNames([
@@ -71,7 +80,7 @@ var csv = myDM.exportAs('csv');
 This class uses the following data styles and naming conventions:
 
 1. Recordset
-```
+``` Javascript
 var recordset = [
     {"title":"Thing one", "silly":false, "value":7},
     {"title":"Foo Bar", "silly":true, "value":11},
@@ -80,7 +89,7 @@ var recordset = [
 ```
 
 2. Table
-```
+``` Javascript
 var table = [
     ["Thing one", false, 7],
     ["Foo Bar", true, 11],
@@ -89,7 +98,7 @@ var table = [
 ```
 
 3. RecordTable
-```
+``` Javascript
 var recordTable = {
     "fields": ["title","silly","value":7],
     "table": [
@@ -144,6 +153,10 @@ var recordTable = {
 - ### search()
 
     Searches the data. You can search the whole table or just a particular field. You can also get the results in a variety of formats from just an array of matching row indexes to a full RecordTable that only includes the row data from where matches were found. You may also pass a function that returns true for the results you want.
+
+- ### replace()  
+
+    Replaces cell values based on a query. This is just a convenience wrapper for search() and modifyCellValues()
 
 - ### limit()
 

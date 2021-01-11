@@ -1,6 +1,6 @@
 {
   "name": "jw-datamaster",
-  "version": "1.4.1",
+  "version": "1.5.0",
   "description": "Class for managing database-style data",
   "main": "datamaster.js",
   "scripts": {
@@ -15,7 +15,8 @@
     "manipulate",
     "search",
     "convert",
-    "csv"
+    "csv",
+    "sql"
   ],
   "author": "Jonathan Wyett",
   "license": "ISC",
