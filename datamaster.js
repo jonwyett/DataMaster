@@ -1,3 +1,11 @@
+ /* TODO:
+    -search() should take regex and/or be able to find exact matches
+        or wildcard matches. 
+
+
+ */
+ 
+ 
  /**
  * Creates a DataMaster object
  * 
@@ -834,41 +842,40 @@ var DataMaster = function(data, fields, options) {
     };   
 
     /**
-     * Replaces data in the DataMaster based on a search
-     * @param {Object} options
-     * @param {string|number|function} options.query - The value to search for
-     * @param {string|number} options.newValue- The replacement value
-     * @param {string|number} [options.searchField] -The field to search in, undefined for all
-     * @returns {Object} Various types
+     * 
+     * @param {string/RegEx} query - the value to search for 
+     * @param {string|number} newValue - the replacement value
+     * @param {*} fields 
      */
-    this.replace = function(options) {
-        //this is a convenience function wrapper for the internal search and modifyCell functions
-        //setup some defaults and some requirements
-        if (typeof options === 'undefined') { return null; }
-        if (typeof options.query === 'undefined') { return null; }
-        if (typeof options.newValue === 'undefined') { return null; }
-        
-        if (typeof options.searchField !== 'undefined') {
-            _self.search({
-                query: options.query,
-                searchField: options.searchField,
-                style: 'index' //return an array of the row indexes that match
-            }).forEach(function(index) { //loop over the array 
-                _self.modifyCell(index, options.searchField, options.newValue); //modify the cell
-            });
-        } else {
-            _fields.forEach(function(field) {
-                _self.search({
-                    query: options.query,
-                    searchField: field,
-                    style: 'index' //return an array of the row indexes that match
-                }).forEach(function(index) { //loop over the array 
-                    _self.modifyCell(index, field, options.newValue); //modify the cell
-                });
-            });
+    this.replace = function(query, newValue, fields) {
+        if (typeof query === 'undefined') { return this; }
+        if (typeof newValue === 'undefined')  { return this; }
+        if (typeof fields === 'undefined') { fields = _fields; }
+
+        //convert to an array if only one field provided
+        if (!Array.isArray(fields)) { fields = [fields]; }
+
+        //if the user provided a string, make it a regex, not insensitive, global replace        
+        if (!(query instanceof RegExp)) {
+            query = new RegExp(query.toString(),'ig');   
         }
+
+        //iterate over the provided fields
+        for (var f=0; f<fields.length; f++) {
+            //find the index of the field
+            var col = findFieldIndex(_fields, fields[f]);
+            //iterate down the column
+            for (var row=0; row<_table.length; row++) {
+                //replace the values
+                //we're going to treat nulls as empty strings
+                var cell = _table[row][col];
+                if (cell === null) { cell = ''; }
+                _table[row][col] = cell.replace(query, newValue);
+            }
+        }
+
+        return this; //for chaining
         
-        return this; //for chaining 
     };
 
     /**
