@@ -227,7 +227,11 @@ var DataMaster = function(data, fields, options) {
 
     function findFieldIndex(fields, field) {
         if (typeof field === 'number') {
-            return field;
+            if (field <fields.length) {
+                return field;
+            } else {
+                return false;
+            }
         } else {
             for (var f=0; f<_fields.length; f++) {
                 if (fields[f] === field) { //hard check
@@ -864,13 +868,15 @@ var DataMaster = function(data, fields, options) {
         for (var f=0; f<fields.length; f++) {
             //find the index of the field
             var col = findFieldIndex(_fields, fields[f]);
-            //iterate down the column
-            for (var row=0; row<_table.length; row++) {
-                //replace the values
-                //we're going to treat nulls as empty strings
-                var cell = _table[row][col];
-                if (cell === null) { cell = ''; }
-                _table[row][col] = cell.replace(query, newValue);
+            //iterate down the column if it is valid
+            if (col !== false) {
+                for (var row=0; row<_table.length; row++) {
+                    //replace the values
+                    //we're going to treat nulls as empty strings
+                    var cell = _table[row][col];
+                    if (cell === null) { cell = ''; }
+                    _table[row][col] = cell.replace(query, newValue);
+                }
             }
         }
 
