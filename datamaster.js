@@ -1,10 +1,4 @@
- /* TODO:
-    -search() should take regex and/or be able to find exact matches
-        or wildcard matches. 
-
-
- */
- 
+// ver 2.1.0 2021-01-21
  
  /**
  * Creates a DataMaster object
@@ -13,6 +7,7 @@
  * @param {(string[]|boolean)} [fields] - Array of fieldnames or true to use the first row as fieldnames
  * @param {object} [options] - Various advanced options
  * @param {boolean} [options.isTSV] - Tab Separated Values are being provided as the data
+ * @param {boolean} [options.noCR] - Newlines are \n only, not \r\n
  * @example
  *  var data = [
  *      ['col1','col2','col3'],
@@ -80,7 +75,7 @@ var DataMaster = function(data, fields, options) {
                         _table.splice(0, 1); //remove the first row since it's actually the field names
                     }
                 } else if (typeof data === 'string') {
-                    _table = csvToTable(data, options.isTSV);
+                    _table = csvToTable(data, options.isTSV, options.noLF);
                     createFields(); //create default fields
                     if (Array.isArray(fields)) { createFields(fields); } //create the fields based on the passed fieldnames
                     else if (fields === true) { //when set explicitly to true, the first row is treated as the fieldnames
@@ -103,13 +98,19 @@ var DataMaster = function(data, fields, options) {
 
     /******* INTERNAL FUNCTIONS **********************************************************/
 
-    function csvToTable(csv, isTSV) {
+    function csvToTable(csv, isTSV, noCR) {
         //create the recordtable
         var table = [];
     
         var sep = ','; //the separator char
         if (isTSV) { sep = '\t'; }
         var cr = '\r\n'; //the carriage return char
+
+        //LF (Newline. \n) only, no Carriage return (CR, \r)
+        //this is what will be passed from an html text field
+        //or from a multi-line string in javascript
+
+        if (noCR) { cr = '\n'; }
         
         var cell = ''; //the cell buffer
         var row = []; //the row buffer
