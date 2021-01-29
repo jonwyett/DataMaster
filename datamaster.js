@@ -1,4 +1,4 @@
-// ver 2.2.1 2021-01-29
+// ver 2.2.2 2021-01-29
  
  /**
  * Creates a DataMaster object
@@ -1330,10 +1330,7 @@ var DataMaster = function(data, fields, options) {
                     }
                     //to get here the first check was true and so were the others
                     return true; 
-                } else {
-                    //since the first col didn't match it ain't a match
-                    return false;
-                }
+                } 
             }
         }
 
