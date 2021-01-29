@@ -1,4 +1,4 @@
-// ver 2.2.0 2021-01-29
+// ver 2.2.1 2021-01-29
  
  /**
  * Creates a DataMaster object
@@ -1281,14 +1281,17 @@ var DataMaster = function(data, fields, options) {
 
     /**
      * Removes duplicate entries from the table based on the fields supplied
-     * @param {array} fields - the fields to match on
+     * @param {array|string} [fields] - the fields to match on
      */
     this.removeDuplicates = function(fields) {
         if (_table.length === 0) { return this; } //no table data!
         if (typeof fields === 'undefined') {
             fields = _fields;
         }
-
+        //convert to an array if only one field provided
+        if (!Array.isArray(fields)) { fields = [fields]; }
+        
+        
         var newTable = []; //table with no dupes
         
         //Generate a table of cols based on the fields provided
