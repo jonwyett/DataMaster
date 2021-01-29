@@ -206,6 +206,9 @@ var recordTable = {
 
     Pivots the RecordTable so that rows become columns.
 
+- ### removeDuplicates()  
+
+    Removes duplicate entries based on matching the supplied fields.
 
 
 

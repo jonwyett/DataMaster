@@ -1,4 +1,4 @@
-// ver 2.1.0 2021-01-21
+// ver 2.2.0 2021-01-29
  
  /**
  * Creates a DataMaster object
@@ -75,7 +75,7 @@ var DataMaster = function(data, fields, options) {
                         _table.splice(0, 1); //remove the first row since it's actually the field names
                     }
                 } else if (typeof data === 'string') {
-                    _table = csvToTable(data, options.isTSV, options.noLF);
+                    _table = csvToTable(data, options.isTSV, options.noCR);
                     createFields(); //create default fields
                     if (Array.isArray(fields)) { createFields(fields); } //create the fields based on the passed fieldnames
                     else if (fields === true) { //when set explicitly to true, the first row is treated as the fieldnames
@@ -1277,6 +1277,68 @@ var DataMaster = function(data, fields, options) {
 
         return this; //for chaining   
     };
+
+
+    /**
+     * Removes duplicate entries from the table based on the fields supplied
+     * @param {array} fields - the fields to match on
+     */
+    this.removeDuplicates = function(fields) {
+        if (_table.length === 0) { return this; } //no table data!
+        if (typeof fields === 'undefined') {
+            fields = _fields;
+        }
+
+        var newTable = []; //table with no dupes
+        
+        //Generate a table of cols based on the fields provided
+        // i.e. 'lastName -> 3'
+        var testCol = null;
+        var cols = [];
+        for (var f=0; f<fields.length; f++) {
+            testCol = findFieldIndex(_fields, fields[f]);
+            if (testCol !== false) {
+                cols.push(testCol);
+            }
+        }
+
+        //put the first table column into the new table
+        newTable.push(_table[0]);
+
+        //iterate over the entire datamaster
+        for (var row=0; row<_table.length; row++) {
+            if (!testForMatch(_table[row])) {
+                newTable.push(_table[row]);
+            }    
+        }
+
+        function testForMatch(rowData) {
+            //iterate over the entire new table
+            for (var row=0; row<newTable.length; row++) {
+                //just test the first col, since if it isn't a match then we're set
+                //do a soft check
+                if (newTable[row][cols[0]] == rowData[cols[0]]) {
+                    //check each other col, if it's not a match return false
+                    //start with the second column since we've already checked the first
+                    for (col=1; col<cols.length; col++) {
+                        if (newTable[row][col] != rowData[col]) {
+                            return false; //not a full match!
+                        }
+                    }
+                    //to get here the first check was true and so were the others
+                    return true; 
+                } else {
+                    //since the first col didn't match it ain't a match
+                    return false;
+                }
+            }
+        }
+
+        //copy the new table into the master table
+        _table = newTable;
+        return this;
+    };
+
 
 }; //END DATAMASTER 
 
