@@ -1,4 +1,4 @@
-// ver 2.2.2 2021-01-29
+// ver 2.2.3 2021-02-17
  
  /**
  * Creates a DataMaster object
@@ -480,7 +480,7 @@ var DataMaster = function(data, fields, options) {
             newline = '\r\n';
             space = ' ';
         }
-        function lpad(value, length) {
+        function lPad(value, length) {
             if (typeof value === 'number') { value = value.toString(); }
             if (typeof value !== 'string') {
                 value = new Array(length + 1).join(space);
@@ -495,27 +495,36 @@ var DataMaster = function(data, fields, options) {
         }
 
         var pads = [];
+        var val = '';
         for (var i=0; i<_fields.length; i++) {
             pads[i] = _fields[i].length;      
         }
         for (var r=0; r<_table.length; r++) {
             for (var c=0; c<_fields.length; c++) {
-                if (_table[r][c]) { //in case it's null or undefined
-                    if (_table[r][c].toString().length > pads[c]) { pads[c] = _table[r][c].toString().length; }
-                }
+                val = _table[r][c];
+                if (val === true) { val = 'true'; }
+                else if (val === false) { val = 'false'; }
+                else if (val === null) { val = 'null'; }
+                else if (typeof val === 'undefined') { val = 'undefined'; }
+                if (val.toString().length > pads[c]) { pads[c] = val.toString().length; }
             } 
         }
 
         var out = newline;
         out += '-|';
         for (var f=0; f<_fields.length; f++) {
-            out += lpad(_fields[f], pads[f]) + '|';
+            out += lPad(_fields[f], pads[f]) + '|';
         }
         out += newline;
         for (var row = 0; row<_table.length; row++) {
             out += row + '|';
             for (var col=0; col<_table[row].length; col++) {
-                out += lpad(_table[row][col], pads[col]) + '|';
+                val = _table[row][col];
+                if (val === true) { val = 'true'; }
+                else if (val === false) { val = 'false'; }
+                else if (val === null) { val = 'null'; }
+                else if (typeof val === 'undefined') { val = 'undefined'; }
+                out += lPad(val, pads[col]) + '|';
             }
             out += newline;
         }
@@ -1281,7 +1290,7 @@ var DataMaster = function(data, fields, options) {
 
     /**
      * Removes duplicate entries from the table based on the fields supplied
-     * @param {array|string} [fields] - the fields to match on
+     * @param {array|string|number} [fields] - the fields to match on
      */
     this.removeDuplicates = function(fields) {
         if (_table.length === 0) { return this; } //no table data!

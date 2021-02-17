@@ -100,7 +100,7 @@ var table = [
 3. RecordTable
 ``` Javascript
 var recordTable = {
-    "fields": ["title","silly","value":7],
+    "fields": ["title","silly","value"],
     "table": [
         ["Thing one", false, 7],
         ["Foo Bar", true, 11],
@@ -112,7 +112,14 @@ var recordTable = {
 ## List of Functions:
 - ### debug()
 
-   Spits out a textual representation of the data in either a console or html style. 
+   Spits out a textual representation of the data in either a console or html style.   
+
+   __params:__  
+   * consoleMode {boolean}   
+        * if false, will render for html output (default)
+
+- ### print()  
+    Same as debug()
 
 - ### copy()
 
@@ -120,95 +127,369 @@ var recordTable = {
 
 - ### exportAs()
 
-   Exports the data in various styles.
+   Exports the data in various styles.  
 
-- ### length()
+   __params:__  
+   * style {('table'|'recordset'|'recordtable'|'spreadsheet'|'csv')} - what format to export the data in
+        * 'spreadsheet' uses the fields as the first row, 'csv' only exports the table itself, both are strings in csv format
+    * options:
+    ``` javascript
+    {
+        fields: [] //The column names or indexes to export and the order
+        //NOTE: undefined = all columns in the existing order
 
-   Returns the length of the table.
+        //CSV only options:
+        startRow: 0 //The row to start export from,
+        startCol: 0 //The column to start export from,
+        newLineString='\r\n' //The string to use for newlines 
+
+    }
+
+    ```
+- ### table()
+
+   Returns a copy of the table data (no fieldnames).
 
 - ### table()
 
    Returns a copy of the table data (no fieldnames).
 
-- ### fields()
-
-   Returns an array of fieldnames.
-
 - ### getColumn()
 
    Returns a column as an array.
 
+    __params:__  
+    * column {string|number} - The column name or index to return  
+    * distinct {boolean} - no duplicates
+
 - ### getRow()
 
-    Returns a row as an array.
+    Returns a row as an array.  
+    __params:__  
+    * index {number} - the row index
+    * style {('array'|'table'|'recordset'|'recordtable'|'object')} - the type of data to return, default=array  
+    __ex:__  
+    ``` javascript
+    dm.getRow(0, 'array');
+    //['foo', 'bar']
+    dm.getRow(0, 'table');
+    //[['foo', 'bar']]
+    dm.getRow(0, 'recordset');
+    /*
+        [
+            {col1: 'foo', col2: 'bar'}
+        ]
+    */
+    dm.getRow(0, 'recordTable');
+    /*
+        {
+            fields: ['col1', 'col2'],
+            table: [['foo', 'bar']]
+        }
+    */
+    dm.getRow(0, 'object');
+    // {col1: 'foo', col2: 'bar'}
+    ```
+    __NOTE:__  'array' and 'object' are the most logical type of output
+
 
 - ### sort()
 
-    Sorts the data.
+    Sorts the data.  
+    __params:__  
+    * field {string|number} - The field to sort by, if null all fields will be sorted in order  
+            * __NOTE:__ In theory all fields will sort in order, in practice this is not currently guaranteed 
 
 - ### reorder()
 
-   Reorders the columns. If you omit column names that will be stripped.
+   Reorders the columns. If you omit column names that will be stripped.  
+   __params:__ 
+   * fields {string[]|number[]} - The fields to keep and in what order  
+   __ex:__  
+   ```javascript
+   /* given:
+        {
+            "fields": ["title","silly","value"],
+            "table": [
+                ["Thing one", false, 7],
+                ["Foo Bar", true, 11],
+                ["Another thing", false, 3.5]
+            ]
+        }
+    */
+    dm.reorder(['value','title']);
+    /* The dm will be modified in place to be:
+        {
+            "fields": ["value","title"].
+            "table": [
+                [7, "Thing one"],
+                [11, "Foo Bar"],
+                [3.5, "Another thing]
+
+            ]
+        }
+    */
+    ```
+
 
 - ### search()
 
-    Searches the data. You can search the whole table or just a particular field. You can also get the results in a variety of formats from just an array of matching row indexes to a full RecordTable that only includes the row data from where matches were found. You may also pass a function that returns true for the results you want.
+    Searches the data. You can search the whole table or just a particular field. You can also get the results in a variety of formats from just an array of matching row indexes to a full RecordTable that only includes the row data from where matches were found. You may also pass a function that returns true for the results you want.  
+
+    __params:__  
+    ``` javascript
+    /*
+        {
+            query: {string|number|function} //The value to search for,
+            searchField: {string|number} //The field to search in, undefined for all,
+            return: {string|number} //the field to return
+            style: {('table'|'recordset'|'recordtable'|'index'|'array')} // default='index'
+
+        }
+    */
+    ```
+    __NOTE:__  
+    * index will always return an array of the indices where the search was true
+    * I'm not really sure how table/array differ but it appears this has to do with a scenario when a return field is specified and whether or not the resulting array is 1 or 2 dimensional. Submit a patch!
+
 
 - ### replace()  
 
-    Replaces cell values based on a query. This is just a convenience wrapper for search() and modifyCellValues()
+    Replaces cell values based on a query. 
+
+    __params:__  
+    * query {string|RegEx} - the value to search for
+    * newValue {string|number} - the replacement value
+    * fields {string[]|number[]} - the fields to search
+            * can be an array or a single field name/number
+
+    __ex:__
+    ``` javascript
+    /* given:
+        {
+            "fields": ["title","silly","value"],
+            "table": [
+                ["Thing one", false, 7],
+                ["Foo Bar", true, 11],
+                ["Another thing", false, 3.5]
+            ]
+        }
+    */
+    dm.replace('Foo Bar', 'fOO bAr!!!', 'title');
+    /*
+        {
+            "fields": ["title","silly","value"],
+            "table": [
+                ["Thing one", false, 7],
+                ["fOO bAr!!!", true, 11],
+                ["Another thing", false, 3.5]
+            ]
+        }
+    */
+
 
 - ### limit()
 
-   Same as the search() function but limits the datamaster based on the result instead of returning the results.
+   Same as the search() function but limits the datamaster based on the result instead of returning the results. i.e. an in-place version of search()
+
+   __params:__  
+   ```javascript
+   /*
+    {
+        query: string //the value to search for,
+        searchField: string|number //the field to search
+    }
 
 - ### setFieldNames()
 
-    Change the existing field names.
+    Change the existing field names.  
+    __params:__  
+    * fields {string[]} - the new field names
+            * NOTE: if you pass fewer names then already exist in the recordtable the remaining ones wont be updated.
 
 - ### modifyFieldNames()
 
    Change/reorder/limit the field names (the column names). This requires a "field-map" where you specify which fields are renamed to what values. You can set a flag to true that will also reorder and limit the fields based on your map. Doing this makes this function a combination of setFieldNames() and reorder() in a single call.
 
+   __params:__  
+   * fieldmap
+   * reorder {boolean}
+   __ex:__  
+
+   ``` javascript
+   /* given:
+        {
+            "fields": ["title","silly","value"],
+            "table": [
+                ["Thing one", false, 7],
+                ["Foo Bar", true, 11],
+                ["Another thing", false, 3.5]
+            ]
+        }
+    */
+    
+     dm.modifyFieldNames(
+         ['silly', 'serious'],
+         ['title', 'phrase']
+     ], true);
+     /* result:
+        {
+            "fields": ["serious", "phrase"],
+            "table": [
+                [false, "Thing one"],
+                [true, "Foo Bar"],
+                [false, "Another thing"]
+            ]
+        }
+     */
+   ```
+
 - ### addColumn()
 
-    Add a new column at a particular location in the table. You can include the column data.
+    Add a new column at a particular location in the table. You can include the column data.  
+    __params:__  
+    * name {string} - the name of the new column/field
+    * data {array} - the data to add (optional)
+    * location {string|number} - index or field/column name to place the new column after
+            * __NOTE:__ undefined will place the new column at the end  
+    __ex:__
+    ``` javascript
+    /* given:
+        {
+            "fields": ["title","silly","value"],
+            "table": [
+                ["Thing one", false, 7],
+                ["Foo Bar", true, 11],
+                ["Another thing", false, 3.5]
+            ]
+        }
+    */
+    dm.addColumn('newCol', ['what?',"who?","when?"], 'silly');
+    /* result:
+        {
+            "fields": ["title","silly","newCol","value"],
+            "table": [
+                ["Thing one", false, "what?", 7],
+                ["Foo Bar", true, "who?", 11],
+                ["Another thing", false, "when?", 3.5]
+            ]
+        }
+    */
+    ```
 
 - ### removeColumn()
 
-    Removes a column.
+    Removes a column.  
+    __params:__  
+    * column {string|number} - the column/field to remove
 
 - ### addRow()
 
-    Add a row at a particular location. You can include the row data.
+    Add a row at a particular location. You can include the row data.  
+    __params:__  
+    * data - the new data to add
+            *__NOTES:__  
+                    * array will only add items up to the existing length, extras will be skipped
+                    * for object, only matching field names will be added, the rest skipped or set to null
+    * location - the index at which to place the new row, shifting existing rows 
+            *__NOTES:__ 
+                    * undefined: end of table
+                    * <=0: beginning of table
+
 
 - ### removeRow()
 
-    Remove a row.
+    Remove a row.  
+    __params:__  
+    * index {number} - the row to remove
 
-- ### modifyCel()
+- ### modifyCell()
 
-    Modify the data of a particular cell.
+    Modify the data of a particular cell.  
+   __params:__  
+    * row {number} - the row
+    * column {string|number} - the column name/index
+    * value {string|number} - the new value for the cell
 
 - ### getCell()
 
-    Get the value of a particular cell.
+    Get the value of a particular cell.  
+    __params:__  
+    * row {number} - the row
+    * column {string|number} - the column name/index
+    
+- ### length()  
+
+    get the length of the datamaster table (the number of rows)  
 
 - ### sumColumns()
 
-    Sum 1 or more columns, putting the results into a new column at the end.
-
+    Sum 1 or more columns, putting the results into a new row at the end.  
+    __params:__  
+    * label {string} - this will be the label for the column holding the row sums (optional)
+    * columns {string[]|number[]} - the columns to sum. Undefined for all.
+ 
 - ### sumRows()
 
     Sum 1 or more rows, putting the results into a new row at the end.
 
 - ### pivot()
 
-    Pivots the RecordTable so that rows become columns.
+    Pivots the RecordTable so that rows become columns. Same as the "transpose" function in Excel. See: https://support.microsoft.com/en-us/office/transpose-rotate-data-from-rows-to-columns-or-vice-versa-3419f2e3-beab-4318-aae5-d0f862209744
 
 - ### removeDuplicates()  
 
-    Removes duplicate entries based on matching the supplied fields.
+    Removes duplicate rows based on matching the supplied fields.
+    __params:__  
+    * fields {array|string|number} - a single field name or field index to match on or an array of field names/field indices.  
+
+    ``` javascript
+    /* given the data
+    
+        -|first|last |age|
+        0|Alice|Smith|23 |
+        1|Alice|Jones|34 |
+        2|Alice|Jones|63 |
+        3|Bob  |Smith|19 |
+
+    */
+
+    dm.removeDuplicates(); //no fields is all fields
+    /* result
+
+        -|first|last |age|
+        0|Alice|Smith|23 |
+        1|Alice|Jones|34 |
+        2|Alice|Jones|63 |
+        3|Bob  |Smith|19 |
+
+        Since every row has some unique data there are no dupes
+
+    */
+
+    dm.removeDuplicates(['first','last']); 
+    /* result
+    
+        -|first|last |age|
+        0|Alice|Smith|23 |
+        1|Alice|Jones|34 |
+        2|Bob  |Smith|19 |
+
+        The second "Alice Jones" is removed because it's considered a
+        dupe even though the ages are different
+    */
+
+    dm.removeDuplicates(['last']); 
+    /* result
+
+        -|first|last |age|
+        0|Alice|Smith|23 |
+        1|Alice|Jones|34 |
+
+        Since we're considering only the 'last' field the second
+        'Jones' and second 'Smith' are both dupes.
+    */
+    ```
 
 
 
