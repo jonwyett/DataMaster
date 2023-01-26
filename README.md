@@ -14,6 +14,79 @@ Class for managing database-style data within JS
 - sum rows/columns
 - pivot the data, rows become columns
 
+## Creating the DataMaster ##  
+
+You can supply a recordset, a table, text in CSV or TSV format,or an object in the DataMaster format.  
+
+**Example 1, Recordset:**
+``` Javascript
+var data = [
+    {'Name':'Alice','Age':23,'Happy':true},
+    {'Name':'Bob','Age':43,'Happy':true},
+    {'Name':'Cindy','Age':31,'Happy':false},
+];
+var myDM = new jwdm.DataMaster(data);
+```
+
+**Example 2, Table:**
+``` Javascript
+//You can supply fieldnames as the second option
+//if you don't the fields will just be 1,2,3,4,etc
+var data = [
+    ['Alice',23,true],
+    ['Bob',43,true]
+    ['Cindy',31,false]
+];
+//Automatic fieldnames
+var myDM_a = new jwdm.DataMaster(data);
+//Supplied fieldnames
+var myDM_b = new jwdm.DataMaster(data,['Name','Age','Happy']);
+
+//First row is fieldnames
+var data_b = [
+    ['Name','Age','Happy'],
+    ['Alice',23,true],
+    ['Bob',43,true]
+    ['Cindy',31,false]  
+];
+
+var myDM_c = new jwdm.DataMaster(data, true);
+
+```
+
+**Example 3, RecordTable:**
+``` Javascript
+//Alternative way of supplying a table and fieldnames seperately
+//this can also be used when creating a new DataMaster from an existing one using the export function
+var data = [
+    ['Alice',23,true],
+    ['Bob',43,true]
+    ['Cindy',31,false]
+];
+var fieldNames = ['Name','Age','Happy'];
+
+var dm = new jwdm.DataMaster({
+    'fields': fieldNames,
+    'data': data
+});
+```
+
+**Example 4, CSV Data:**
+``` Javascript
+//passed CSV data is has the same options as passed table data
+//so you can pass a fields table, or set fields to true, or pass nothing for auto-fieldnames
+var data = `
+Name,Age,Happy
+Alice,23,true
+Bob,43,true
+Cindy,31,false
+`
+
+//create the table using first row as fieldnames
+var dm = new jwdm.DataMaster(data, true);
+```
+
+
 ## Example scenario:
 
 1) Import data from a mySQL server in JSON format
@@ -432,6 +505,34 @@ var recordTable = {
 - ### sumRows()
 
     Sum 1 or more rows, putting the results into a new row at the end.
+
+- ### formatColum()
+
+    Format a column based on a user-supplied formatting function (in-place)
+    __params:__  
+    * label {string|number} - The column name or number to format
+    * format {function} - The formatting function to apply
+
+    ``` javascript
+        //Makes the last name column all uppercase
+        dm.formatColumn('LastName', function(value) {
+            return value.toUpperCase();
+        });
+    ```
+
+- ### formatRow()
+
+    Format a row based on a user-supplied formatting function (in-place)
+    __params:__  
+    * row {number} - The row number to format
+    * format {function} - The formatting function to apply
+
+    ``` javascript
+        //Makes the 3rd row all uppercase (rows are 0-indexed)
+        dm.formatRow(2, function(value) {
+            return value.toUpperCase();
+        });
+    ```
 
 - ### pivot()
 

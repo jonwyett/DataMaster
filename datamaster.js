@@ -337,6 +337,25 @@ var DataMaster = function(data, fields, options) {
         return res;
     }
 
+    function itemInList(list, item) {
+        //checks to see if an item is in a list, such as a particular string
+        //this looks for a soft equivalence, so 1 = '1' etc
+        /* Params:
+            -list: array[], the list of things to check against
+            -item: the thing we're checking for
+        */
+
+        if (list.constructor !== Array) { return false; }
+    
+        for (var i=0; i<list.length; i++) {
+            if (list[i] == item) { return true; } //soft check
+        }
+    
+        return false;
+    
+    
+    }
+
     function getTableColumn(table, column, distinct) {
         //returns a single column from a table
         /* Params:
@@ -344,24 +363,6 @@ var DataMaster = function(data, fields, options) {
             -distinct: (bool), no duplicates
         */
 
-        function itemInList(list, item) {
-            //checks to see if an item is in a list, such as a particular string
-            //this looks for a soft equivalence, so 1 = '1' etc
-            /* Params:
-                -list: array[], the list of things to check against
-                -item: the thing we're checking for
-            */
-    
-            if (list.constructor !== Array) { return false; }
-        
-            for (var i=0; i<list.length; i++) {
-                if (list[i] == item) { return true; } //soft check
-            }
-        
-            return false;
-        
-        
-        }
         var col = [];
         try {
             //push the column into an Array, row by row
@@ -718,8 +719,6 @@ var DataMaster = function(data, fields, options) {
         
         return this;
     };
-
-
 
     /**
      * Reorders the DataMaster in place and removes fields
@@ -1348,6 +1347,56 @@ var DataMaster = function(data, fields, options) {
         return this;
     };
 
+    
+    /**
+     * Formats the cells in a table based on a formatting function passed by the user.
+     * This is an in-place replacement of the original data
+     * The format function is wrapped in a simple try/catch
+     * @param {string|number} column - The column name or index to return 
+     * @param {function} format - How to modify/format the data
+     * @returns 
+     */
+    this.formatColumn = function(column, format) {
+        if (typeof format != 'function') { return this; }
+
+        var index = findFieldIndex(_fields, column);
+        if (index === false) { return this; }
+
+        for (var row=0; row<_table.length; row++) {
+            try {
+                _table[row][index] = format(_table[row][index]);
+            } catch (e) {
+                //console.log(e);
+            }
+        }
+        
+        return this;
+    };
+
+    /**
+     * Formats the cells in a table based on a formatting function passed by the user.
+     * This is an in-place replacement of the original data
+     * The format function is wrapped in a simple try/catch
+     * @param {string|number} column - The column name or index to return 
+     * @param {function} format - How to modify/format the data
+     * @returns 
+     */
+     this.formatRow = function(row, format) {
+        if (typeof format != 'function') { return this; }
+
+        if (row > _self.length()) { return this; }
+
+        for (var col=0; col<_table[row].length; col++) {
+            console.log(col + ':' + _table[row][col]);
+            try {
+                _table[row][col] = format(_table[row][col]);
+            } catch (e) {
+                //console.log(e);
+            }
+        }
+        
+        return this;
+    };
 
 }; //END DATAMASTER 
 
