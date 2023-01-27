@@ -1148,9 +1148,10 @@ var DataMaster = function(data, fields, options) {
      * Sums column values
      * @param {string} [label] - If the rows have headers, this will be the label for the sums
      * @param {string[]|number[]} [columns] - The columns to sum. Undefined for all.
+     * @param {bool} [isAverage] - Will create averages instead of sums
      * @returns {Object} this
      */
-    this.sumColumns = function(label, columns) {
+    this.sumColumns = function(label, columns, isAverage) {
         //if not passed, create a column array with all columns
         if (typeof columns === 'undefined') {
             columns = [];
@@ -1178,18 +1179,29 @@ var DataMaster = function(data, fields, options) {
         //we should now have an array of valid column indexes
         //create the sums array
         var sums = [];
+        //this stores the number of valid numbers in a column so if a col has
+        //non-number values they wont be used to compute the average
+        //ex: avg[2,'foo','bar'] should equal 2, not 0.667 
+        var avgCount = []; 
         for (var s=0; s<_fields.length; s++) { sums.push(null); }
         if (typeof label === 'string') { sums[0] = label; } //replace the first column with the label
 
         //now sum the columns from the clean array
         for (var c=0; c<clean.length; c++) {
             var sum = 0;
+            avgCount[c] = 0;
             for (var r=0; r<_table.length; r++) {
                 if (typeof _table[r][clean[c]] === 'number') {
                     sum += _table[r][clean[c]];
+                    avgCount[c] ++;
                 }
             }
             sums[clean[c]] = sum;
+            
+            //switch to an average if requested
+            if (isAverage && avgCount[c] > 0) {
+                sums[clean[c]] /= avgCount[c];
+            }
         }
 
         //we now have a full array of the sums, so add as a new row
@@ -1202,13 +1214,18 @@ var DataMaster = function(data, fields, options) {
      * Sums rows
      * @param {string} label -The label of the new column holding the sum 
      * @param {number[]} [rows] - The rows to sum, undefined for all
+     * @param {bool} [isAverage] - Will create averages instead of sums
      * @returns {Object} this
      */
-    this.sumRows = function(label, rows) {
+    this.sumRows = function(label, rows, isAverage) {
         if (typeof label === 'undefined' || label === null) { label = 'Total'; }
         
         //create an array to hold the sums. Set to null by default
         var sums = [];
+        //this stores the number of valid numbers in a row so if a row has
+        //non-number values they wont be used to compute the average
+        //ex: avg[2,'foo','bar'] should equal 2, not 0.667 
+        var avgCount = []; 
         for (var a=0; a<_table.length; a++) { sums.push(null); }
         //if no rows were passed then create a row array with all rows in it
         if (typeof rows === 'undefined') {
@@ -1219,12 +1236,19 @@ var DataMaster = function(data, fields, options) {
         for (var r=0; r<rows.length; r++) {
             if (rows[r]>=0 && rows[r]<_table.length) { //basic sanity check
                 var sum = 0;
+                avgCount[r] = 0;
                 for (var c=0; c<_fields.length; c++) {
                     if (typeof _table[rows[r]][c] === 'number') {
                         sum += _table[rows[r]][c];
+                        avgCount[r] ++;
                     }
                 }
                 sums[rows[r]] = sum;
+                //switch to an average if requested
+                if (isAverage && avgCount[r] > 0) {
+                    //console.log(sums[clean[c]] + '/' + avgCount[c]);
+                    sums[rows[r]] /= avgCount[r];
+                }
             }
         }
         //we now have a column of sums, so push into the table
