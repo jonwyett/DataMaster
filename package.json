@@ -1,6 +1,6 @@
 {
   "name": "jw-datamaster",
-  "version": "2.4.0",
+  "version": "2.5.0",
   "description": "Class for managing database-style data",
   "main": "datamaster.js",
   "scripts": {

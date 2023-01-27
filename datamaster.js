@@ -1,4 +1,4 @@
-// ver 2.2.3 2021-02-17
+// ver 2.5.0 2023/01/27
  
  /**
  * Creates a DataMaster object
@@ -1138,10 +1138,15 @@ var DataMaster = function(data, fields, options) {
 
     /**
      * Get the length of the DataMaster table
+     * @param {bool} columns - Returns the number of columns rather than rows
      * @returns {number} The length of the table
      */
-    this.length = function() {
-        return _table.length;
+    this.length = function(columns) {
+        if (columns) {
+            return _fields.length;
+        } else {
+            return _table.length;
+        }   
     };
 
     /**
