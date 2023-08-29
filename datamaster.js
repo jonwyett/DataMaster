@@ -1,5 +1,14 @@
-// ver 2.5.0 2023/01/27
- 
+// ver 3.0.0 2023/08/29
+/**
+ * TODO
+ * 
+ * 
+ */
+
+
+
+
+
  /**
  * Creates a DataMaster object
  * 
@@ -791,6 +800,7 @@ var DataMaster = function(data, fields, options) {
                         if (tempVal === null) { tempVal = ''; }
                         if (tempVal.toString().toLowerCase().search(new RegExp(options.query.toString(),'i')) > -1) {
                             found.push(r); //just save the row index
+                            break;
                         }   
                     }  
                 }
@@ -1154,6 +1164,7 @@ var DataMaster = function(data, fields, options) {
      * @param {string} [label] - If the rows have headers, this will be the label for the sums
      * @param {string[]|number[]} [columns] - The columns to sum. Undefined for all.
      * @param {bool} [isAverage] - Will create averages instead of sums
+     * @param {string} [isNaNValue] - What to place in the summed/averaged cell if the value is NaN
      * @returns {Object} this
      */
     this.sumColumns = function(label, columns, isAverage) {
@@ -1194,10 +1205,12 @@ var DataMaster = function(data, fields, options) {
         //now sum the columns from the clean array
         for (var c=0; c<clean.length; c++) {
             var sum = 0;
+            var value = 0;
             avgCount[c] = 0;
             for (var r=0; r<_table.length; r++) {
-                if (typeof _table[r][clean[c]] === 'number') {
-                    sum += _table[r][clean[c]];
+                value = parseFloat(_table[r][clean[c]]);
+                if (typeof value === 'number') {
+                    sum += value;
                     avgCount[c] ++;
                 }
             }
@@ -1206,6 +1219,13 @@ var DataMaster = function(data, fields, options) {
             //switch to an average if requested
             if (isAverage && avgCount[c] > 0) {
                 sums[clean[c]] /= avgCount[c];
+            }
+        }
+
+        //if isNaNValue was passed then replace all the NaNs with it
+        if (typeof isNaNValue != 'undefined') {
+            for (var i=0; i<sums.length; i++) {
+                if (isNaN(sums[i])) { sums[i] = isNaNValue; }
             }
         }
 
@@ -1220,9 +1240,10 @@ var DataMaster = function(data, fields, options) {
      * @param {string} label -The label of the new column holding the sum 
      * @param {number[]} [rows] - The rows to sum, undefined for all
      * @param {bool} [isAverage] - Will create averages instead of sums
+     * @param {string} [isNaNValue] - What to place in the summed/averaged cell if the value is NaN
      * @returns {Object} this
      */
-    this.sumRows = function(label, rows, isAverage) {
+    this.sumRows = function(label, rows, isAverage, isNaNValue) {
         if (typeof label === 'undefined' || label === null) { label = 'Total'; }
         
         //create an array to hold the sums. Set to null by default
@@ -1242,9 +1263,11 @@ var DataMaster = function(data, fields, options) {
             if (rows[r]>=0 && rows[r]<_table.length) { //basic sanity check
                 var sum = 0;
                 avgCount[r] = 0;
+                var value = 0;
                 for (var c=0; c<_fields.length; c++) {
-                    if (typeof _table[rows[r]][c] === 'number') {
-                        sum += _table[rows[r]][c];
+                    value = parseFloat(_table[rows[r]][c]);
+                    if (typeof value === 'number') {
+                        sum += value;
                         avgCount[r] ++;
                     }
                 }
@@ -1256,6 +1279,14 @@ var DataMaster = function(data, fields, options) {
                 }
             }
         }
+
+        //if isNaNValue was passed then replace all the NaNs with it
+        if (typeof isNaNValue != 'undefined') {
+            for (var i=0; i<sums.length; i++) {
+                if (isNaN(sums[i])) { sums[i] = isNaNValue; }
+            }
+        }
+
         //we now have a column of sums, so push into the table
         _self.addColumn(label, sums);
 
@@ -1430,7 +1461,8 @@ var DataMaster = function(data, fields, options) {
 }; //END DATAMASTER 
 
 if (typeof window === 'undefined') {
-    exports.DataMaster = DataMaster;
+    //exports.DataMaster = DataMaster;
+    module.exports = DataMaster;
 } else {
     //convenience variable
     var jwdm = DataMaster;

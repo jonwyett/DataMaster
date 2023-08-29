@@ -223,10 +223,6 @@ var recordTable = {
 
    Returns a copy of the table data (no fieldnames).
 
-- ### table()
-
-   Returns a copy of the table data (no fieldnames).
-
 - ### getColumn()
 
    Returns a column as an array.
