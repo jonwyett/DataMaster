@@ -1,4 +1,14 @@
-// ver 3.0.0 2023/08/29
+/**
+ * ver 3.2.0 2023/09/05
+ *  -add advanced search/limit
+ * ver 3.1.0 2023/08/29
+ *  -updated search/limit to support multiple search fields
+ *  -Fixed major bug in search/limit where multiple records were returned for each result
+ * 
+ * ver 3.0.0 2023/08/29
+ */
+
+
 /**
  * TODO
  * 
@@ -472,6 +482,312 @@ var DataMaster = function(data, fields, options) {
         return CSV;
     }
 
+    function advancedSearch(query, queryFunctions) {
+        /*
+          Here's the basics of how this function works:
+          
+          Table:
+            Firstname | Lastname | Status | Email
+            Billy     | Smith    | Normal | name@gmail.com
+            Sarah     | Harper   | VIP    | name@hotmail.com
+            .....     | .....    | .....  | .....
+            etc..     | etc..    | etc..  | etc..
+          
+          Query:
+          (Lastname='smith' OR Lastname='jones' OR Lastname='baker') AND ((Email='%gmail.com OR Email=%aol.com) OR Status='VIP'))
+      
+          1) Convert the query so that the field names are replaced with the index of the field in the table
+            (1='smith' OR 1='jones' OR 1='baker) AND ((3='%gmail.com OR 3=%aol.com) OR 2='VIP'))
+      
+          2) Loop through the table and find each expression and evaluate them as true/false.
+            For the first expression, 1='smith' the program runs a wildcard-enabled comparison between the value in 
+            table[row][1] "Smith" and the value in the single-quotes 'smith' which evaluates to 'true', and then so on for
+            each expression, resulting in the string:
+            (true OR false OR false OR false) AND ((true OR false) OR false))
+      
+          3) Recursively loop though each parenthesis and then evaluate the underlying boolean
+            - (true OR false OR false OR false) AND ((true OR false) OR false)) 
+                - (true OR false OR false OR false) = true
+            - true AND ((true OR false) OR false)) 
+                - ((true OR false) OR false)) 
+                  - (true OR false) = true
+            - true AND (true or false)
+                - (true or false) = true
+            - true AND true
+            - true
+      
+          4) If step #3 is true then add that row to the result table
+      
+          5) Return the result table
+      
+          The two main steps, #2 and #3, each use a helper function to assist them. For #2 the outer function finds the expressions
+          and the inner function evaluates them against the table data. For #3 the outer function finds the parenthesis
+          and then the inner function evaluates the boolean expression within. The outer function runs recursively until there
+          are no more parenthesis and the final result is either true or false.
+        */
+      
+        /*
+          Query Language Specifications:
+          Basic format:
+          FieldName='value' AND (FieldName!='value' OR FieldName='value')
+      
+          -FieldName is case-sensitive
+          -You may use = or != as the operator (equal/not equal)
+          -The 'value' must be enclosed in single-quotes
+          -The value is not case sensitive
+          -The value will be checked against numbers using a loose equivalency ('23'=23=true)
+          -You may use _ or % as wildcards in the value
+          -You may use the OR and AND comparison operators (UPPERCASE). != is equivalent to SQL NOT AND, so effectively OR, AND, AND NOT.
+          -You may (and should) use as many nested parenthesis as needed to create your order of operations
+          -AND takes precedence over OR, but again, use parenthesis and order your query to avoid AND/OR ambiguities
+          -The parser is not designed to handle any extra whitespace
+          -If you pass anything that the parser is confused by you will get the whole data table back.
+          -Functions:
+            -If you pass an object of functions you may include them in the query using a '/' to designate the function: LastName='/myFunc(param1, param2)'
+              -You do not need to wrap param strings in quotes
+            -In this case you must supply the queryFunctions param as:
+              {
+                myfunc: function(testValue, params) {
+                  return testValue < params[0] + params[1] ? true : false;
+                }
+              }
+            -If there is no function match found in the queryFunctions object then the value will be tested as is:
+              LastName='/missingFunc', including the /
+            -Your custom function must return a boolean true/false
+        */
+      
+        /****************************************************************************/  
+        /****** Support functions ***************************************************/
+        /****************************************************************************/  
+      
+        function looseCaseInsensitiveCompare(value, query, forceCaseSensitivity) {
+          // Check for null or undefined
+          if (value == null || query == null) {
+            return false;
+          }
+      
+          // Convert to string
+          value = String(value);
+          query = String(query);
+      
+          // Make case-insensitive unless forceCaseSensitivity is true
+          if (!forceCaseSensitivity) {
+            value = value.toLowerCase();
+            query = query.toLowerCase();
+          }
+      
+          // Handle wildcards
+          let regexStr = '';
+          for (let i = 0; i < query.length; i++) {
+            if (query[i] === '%') {
+              regexStr += '.*';
+            } else if (query[i] === '_') {
+              regexStr += '.';
+            } else {
+              regexStr += query[i];
+            }
+          }
+          var regex = new RegExp(`^${regexStr}$`);
+          var result = regex.test(value);
+          return result;
+        }
+        
+        function parseFunctionString(functionString) {
+          // Check for opening and closing paren 
+          var openParenIndex = functionString.indexOf('(');
+          var closeParenIndex = functionString.lastIndexOf(')');
+        
+          // Extract functionName and initialize arrayContent as empty array
+          var functionName = openParenIndex === -1 ? 
+            functionString : 
+            functionString.substring(0, openParenIndex);
+          let arrayContent = [];
+        
+          // Parse array content only if brackets are present
+          if (openParenIndex !== -1 && closeParenIndex !== -1) {
+            var arrayContentString = functionString.substring(
+              openParenIndex + 1, closeParenIndex
+            );
+        
+            // Wrap arrayContentString with brackets and evaluate to create array
+            try {
+              arrayContent = eval('[' + arrayContentString + ']');
+            } catch (error) {
+              return functionString;
+            }
+          }
+        
+          return {
+            name: functionName,
+            params: arrayContent
+          };
+        }
+      
+        function evaluateSingleOperation(data, operation) {
+          var operatorPattern = /(=|!=)/g;
+          var [index, operator, value] = operation.split(operatorPattern);
+          //remove the ' ' from the value
+          value = value.replace(/['"]/g, '');
+          //verify that the index is valid
+          if (!isNaN(index) && index < data.length) {
+            var matchFound = false; 
+            
+            if (value.charAt(0) === '/') {
+              var functionString = value.substring(1);
+              var functionParts = parseFunctionString(functionString);
+              var functionName = functionParts.name;
+              var functionParams = functionParts.params;
+              if (typeof queryFunctions !== 'undefined') {
+                if (typeof queryFunctions[functionName] === 'function') {
+                  matchFound = queryFunctions[functionName](data[index], functionParams);
+                } else {
+                  matchFound = looseCaseInsensitiveCompare(data[index], value);  
+                }
+              }
+            } else { 
+              matchFound = looseCaseInsensitiveCompare(data[index],value);
+            }
+            
+            //invert matchFound if the operator is !=
+            matchFound = operator === '!='? !matchFound : matchFound;
+      
+            //convert the boolean to string and return
+            if (matchFound) {
+              return 'true'
+            } else {
+              return 'false'
+            }
+          }
+      
+          return 'false';
+        }
+       
+        function replaceAndEvaluateExpressions(data, query) {
+          var regex = /\d+\s*(?:!=|=)\s*'[^']*'/g;
+          let match;
+          let modifiedStr = query;
+        
+          while ((match = regex.exec(query)) !== null) {
+            var expression = match[0];
+            var evaluatedValue = evaluateSingleOperation(data, expression);
+            modifiedStr = modifiedStr.replace(expression, evaluatedValue);
+          }
+        
+          return modifiedStr;
+        }
+      
+        function evaluateLogicalExpression(expression) {
+          var orParts = expression.split(' OR ');
+        
+          for (var orPart of orParts) {
+            var andParts = orPart.split(' AND ');
+            let andResult = true;
+        
+            for (var andPart of andParts) {
+              if (andPart === 'false') {
+                andResult = false;
+                break;
+              }
+            }
+        
+            if (andResult) {
+              return true;
+            }
+          }
+        
+          return false;
+        }
+      
+        
+        function evaluateNestedExpression(expression) {
+          let start = -1;
+          let end = -1;
+          let depth = 0;
+        
+          // Find the inner-most parentheses
+          for (let i = 0; i < expression.length; i++) {
+            if (expression[i] === '(') {
+              if (start === -1) {
+                start = i;
+              }
+              depth++;
+            } else if (expression[i] === ')') {
+              depth--;
+              if (depth === 0) {
+                end = i;
+                break;
+              }
+            }
+          }
+        
+          // Base case: if no parentheses are found, evaluate the expression directly
+          if (start === -1 || end === -1) {
+            return evaluateLogicalExpression(expression) ? 'true' : 'false';
+          }
+        
+          // Recursive case: evaluate the inner-most expression within the parentheses
+          var innerExpression = expression.substring(start + 1, end);
+          var innerResult = evaluateNestedExpression(innerExpression);
+          
+          // Substitute the inner result back into the original expression
+          var newExpression = expression.substring(0, start) + innerResult + 
+                                expression.substring(end + 1);
+        
+          // Recursively evaluate the new expression
+          return evaluateNestedExpression(newExpression);
+        }
+      
+        /***************************************************************************/
+        /***************************************************************************/
+        /***************************************************************************/
+      
+        //The data to return with the matching rows
+        var resultData = [];
+        var resultIndices = [];
+      
+        //convert the query into array indices
+        // Replace field names with corresponding indices
+        for (let i = 0; i < _fields.length; i++) {
+          var fieldName = _fields[i];
+          var regExpEqual = new RegExp(fieldName + '=', 'g');
+          query = query.replace(regExpEqual, i.toString() + '=');
+          var regExpNotEqual = new RegExp(fieldName + '!=', 'g');
+          query = query.replace(regExpNotEqual, i.toString() + '!=');
+       
+        }
+        
+        //Loop through the data and add matches to the result
+        for (var d=0; d<_table.length; d++) {
+          // this turns the query into a string of boolean logic based on the 
+          // result of each logical test
+          // ex: "lastName='smith' OR lastName='jones'"
+          // becomes: "false OR true" (assuming those are the results of the tests)
+      
+          var booleanExpression = replaceAndEvaluateExpressions(_table[d], query);
+      
+          // This evaluates the entire expression, so for the above example it would 
+          // return true, since true OR false = true
+          var result = evaluateNestedExpression(booleanExpression);
+          
+          //if the result is true, push that row into the resultData array
+          if (result == 'true') {
+            resultData.push(_table[d]);
+            resultIndices.push(d);
+          }
+        }
+        
+        //check to make sure the resultData is a 2D array even if nothing was passed
+        if (!Array.isArray(resultData[0])) { 
+          resultData = [resultData];
+        }
+      
+        //return the results
+        return {
+            table: resultData,
+            indices: resultIndices
+        };
+      }
+
     /******* PUBLIC FUNCTIONS **********************************************************/
     
 
@@ -746,8 +1062,8 @@ var DataMaster = function(data, fields, options) {
      * Searches the DataMaster
      * @param {Object} options
      * @param {string|number|function} options.query - The value to search for
-     * @param {string|number} [options.searchField] -The field to search in, undefined for all
-     * @param {string|number} [options.return] - The field to return
+     * @param {string|number|array} [options.searchFields] -The field/fields to search in, undefined for all
+     * @param {string|number} [options.returnField] - The field to return
      * @param {('table'|'recordset'|'recordtable'|'index'|'array')} [options.style='index']
      *  - The style of the returned data
      *      NOTE: 'index' is an array of row indexes that match
@@ -759,8 +1075,61 @@ var DataMaster = function(data, fields, options) {
         if (typeof options.query === 'undefined') { return null; }
         if (typeof options.style === 'undefined') { options.style = 'index'; }
 
-        var searchIndex = findFieldIndex(_fields, options.searchField); //the field to search
-        var returnIndex = findFieldIndex(_fields, options.return); //the field to return
+        //support the old naming conventions
+        if (typeof options.searchField !== 'undefined' && typeof options.searchFields === 'undefined') {
+            options.searchFields = options.searchField;
+        }
+        if (typeof options.return !== 'undefined' && typeof options.returnField === 'undefined') {
+            options.returnField = options.return;
+        }
+
+        //this is sloppy, but we're going to check for options.Advanced and if so, reroute to the advancedSearch
+        //function and return before reaching the rest of the normal/old search function
+        if (options.advanced) {
+            //add an empty queryFunctions object to options
+            if (typeof options.queryFunctions ==='undefined') { options.queryFunctions = {}; }
+            var result = advancedSearch(options.query, options.queryFunctions)
+            var resultData = {
+                table: result.table,
+                fields: _fields
+            };
+            resultIndices = result.indices;
+            if (options.style === 'table') {
+                return resultData.table;
+            } else if (options.style === 'recordset') {
+                return recordtableToRecordset(resultData);    
+            } else if (options.style === 'recordtable') {
+                return resultData;
+            } else if (options.style === 'index') {
+                return resultIndices;
+            } else {
+                return false; //TODO: better error handling when bad style passed
+            }
+        }
+
+        /****************************************************************************************/
+        /** This is the old/normal search function */
+        /****************************************************************************************/
+
+        var searchIndexes = [];
+        //check if searchFields was supplied
+        if (typeof options.searchFields === 'undefined') {
+            //put all of the fields into the search index array
+            for (var i=0; i<_table[0].length; i++) {
+                searchIndexes.push(i);
+            }    
+        } else {
+            //force the searchField into an array
+            if (!Array.isArray(options.searchFields)) {
+                options.searchFields = [options.searchFields];
+            }
+            //generate the searchIndexes
+            for (var s=0; s<options.searchFields.length; s++) {
+                searchIndexes.push(findFieldIndex(_fields, options.searchFields[s])); 
+            }
+        }
+
+        var returnIndex = findFieldIndex(_fields, options.returnField); //the field to return
         
         //we need to convert the options.return value into a valid field in case a column number was passed
         var returnField = false;
@@ -773,39 +1142,26 @@ var DataMaster = function(data, fields, options) {
 
         var tempVal = '';
         for (var r=0; r<_table.length; r++) {
-            if (searchIndex || searchIndex === 0) { //only search the given field
+            for (var c=0; c<searchIndexes.length; c++) {
                 //we're going to use a non-cased search. I can't think of a reason why we would want to 
                 //only search in a case sensitive fashion, but that would be easy enough to add
                 //in the same vein, numbers and strings will be treated the same. 45='45'
                 if (typeof options.query === 'function') {
-                    if (options.query(_table[r][searchIndex])) {
+                    if (options.query(_table[r][searchIndexes[c]])) {
                         found.push(r);
+                        break;
                     }
                 } else {
-                    tempVal = _table[r][searchIndex];
+                    tempVal = _table[r][searchIndexes[c]];
                     if (tempVal === null) { tempVal = ''; }
                     if (tempVal.toString().toLowerCase().search(new RegExp(options.query.toString(),'i')) > -1) {
                         found.push(r); //just save the row index
-                    }  
-                } 
-            } else {
-                for (var c=0; c<_table[r].length; c++) {
-                    if (typeof options.query === 'function') {
-                        if (options.query(_table[r][c])) {
-                            found.push(r);
-                            break;
-                        }
-                    } else {
-                        tempVal = _table[r][c];
-                        if (tempVal === null) { tempVal = ''; }
-                        if (tempVal.toString().toLowerCase().search(new RegExp(options.query.toString(),'i')) > -1) {
-                            found.push(r); //just save the row index
-                            break;
-                        }   
-                    }  
-                }
+                        break;
+                    }   
+                }  
             }
         }
+        
 
         //convert the found array into the various types of return structures the user may want.
         var i;
@@ -907,15 +1263,12 @@ var DataMaster = function(data, fields, options) {
      * Limits the DataMaster based on a search result
      * @param {Object} options
      * @param {string|number|function} options.query - The value to search for
-     * @param {string|number} [options.searchField] -The field to search in, undefined for all
+     * @param {string|number} [options.searchFields] -The field to search in, undefined for all
      * 
      */
-    this.limit = function(options) {
-        _table = _self.search({
-            query: options.query,
-            searchField: options.searchField,
-            style: 'table'
-        });
+    this.limit = function(options) {        
+        options.style = 'table'
+        _table = _self.search(options);
 
         return this; //for chaining
     };

@@ -124,8 +124,6 @@ myDM.search({
     myDM.modifyCell(index, 'orderType', 'Special Order'); //modify the cell
 });
 
-//Or do the same thing with the 
-
 //reorder, limit and rename the columns
 myDM.modifyFieldNames([
     ['date', 'Date'],
@@ -271,7 +269,7 @@ var recordTable = {
 
 - ### reorder()
 
-   Reorders the columns. If you omit column names that will be stripped.  
+   Reorders the columns. If you omit column names from the list they will be be stripped.
    __params:__ 
    * fields {string[]|number[]} - The fields to keep and in what order  
    __ex:__  
@@ -303,24 +301,49 @@ var recordTable = {
 
 - ### search()
 
-    Searches the data. You can search the whole table or just a particular field. You can also get the results in a variety of formats from just an array of matching row indexes to a full RecordTable that only includes the row data from where matches were found. You may also pass a function that returns true for the results you want.  
+    Searches the data. You can search the whole table, just a particular field or a list of fields. You can also get the results in a variety of formats from just an array of matching row indexes to a full RecordTable that only includes the row data from where matches were found. You may also pass a function that returns true for the results you want. You can also use a SQL-like query to search the data. 
 
     __params:__  
-    ``` javascript
-    /*
+    * query: {string|number|function} - The value to search for
+    * searchFields: {string|number|array} - The field/fields to search in, undefined for all
+    * returnField: {string|number} the field to return
+    * style: {'table'|'recordset'|'recordtable'|'index'|'array'} - the data style, default='index'
+    * advanced: {boolean} - use the SQL-like query style
+    * queryFunctions: {object} - and object of named functions for use with advanced  
+    
+    __NOTE:__
+    * style 'array' is meant for when a returnField is specified, this is the only time it will differ from 'table'    
+
+    __SQL-Like Query Language Specification__
+    
+    Basic format:
+    FieldName='value' AND (FieldName!='value' OR FieldName='value')
+
+    * FieldName is case-sensitive
+    * You may use = or != as the operator (equal/not equal)
+    * The 'value' must be enclosed in single-quotes
+    * The value is not case sensitive
+    * The value will be checked against numbers using a loose equivalency ('23'=23=true)
+    * You may use _ or % as wildcards in the value
+    * You may use the OR and AND comparison operators (UPPERCASE). != is equivalent to SQL NOT AND, so effectively OR, AND, AND NOT.
+    * You may (and should) use as many nested parenthesis as needed to create your order of operations
+    * AND takes precedence over OR, but again, use parenthesis and order your query to avoid AND/OR ambiguities
+    * The parser is not designed to handle any extra whitespace
+    * If you pass anything that the parser is confused by you will get the whole data table back.
+    * Functions:
+    * If you pass an object of functions you may include them in the query using a '/' to designate the function: LastName='/myFunc(param1, param2)'
+    * You do not need to wrap param strings in quotes
+    * In this case you must supply the queryFunctions param as:
+    ``` JavaScript
         {
-            query: {string|number|function} //The value to search for,
-            searchField: {string|number} //The field to search in, undefined for all,
-            return: {string|number} //the field to return
-            style: {('table'|'recordset'|'recordtable'|'index'|'array')} // default='index'
-
+            myfunc: function(testValue, params) {
+                return testValue < params[0] + params[1] ? true : false;
+            }
         }
-    */
     ```
-    __NOTE:__  
-    * index will always return an array of the indices where the search was true
-    * I'm not really sure how table/array differ but it appears this has to do with a scenario when a return field is specified and whether or not the resulting array is 1 or 2 dimensional. Submit a patch!
-
+    * If there is no function match found in the queryFunctions object then the value will be tested as is:
+        LastName='/missingFunc', including the /
+    * Your custom function must return a boolean true/false
 
 - ### replace()  
 
