@@ -1,4 +1,6 @@
 /**
+ * ver 3.2.1 2023/09/07
+ *  -fixed issue with constructor using "out-of-order" recordset
  * ver 3.2.0 2023/09/05
  *  -add advanced search/limit
  * ver 3.1.0 2023/08/29
@@ -286,25 +288,27 @@ var DataMaster = function(data, fields, options) {
     function recordsetToRecordTable(data) {
         //converts recordset style data into a recordtable
         /* Params:
-            -data: a recordset to convert
+            -data: a data to convert
         */
+        // Initialize fieldNames and table variables
+        var fieldNames = Object.keys(data[0]);
         var table = [];
-        var rowData = [];
-        var keys = [];
-        for (var row=0; row<data.length; row++) {
-            //initialize the row
-            rowData = [];
-            //initialize the keys
-            keys = Object.keys(data[row]);
-            for (var col=0; col<keys.length; col++) {
-                rowData.push(data[row][keys[col]]); //fill the row
+    
+        // Fill the table array
+        for (var i = 0; i < data.length; i++) {
+            var row = [];
+            for (var j = 0; j < fieldNames.length; j++) {
+                var fieldName = fieldNames[j];
+                if (data[i].hasOwnProperty(fieldName)) {
+                    row.push(data[i][fieldName]);
+                } 
             }
-            table.push(rowData); //add the row to the table
+            table.push(row);
         }
         
         return {
             table: table,
-            fields: keys
+            fields: fieldNames
         };
     }
 
