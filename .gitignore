@@ -141,5 +141,5 @@ dist
 
 # snapshot.js: Ignore local snapshots directory
 __snapshots__/
-snapshot.ext
+snapshot.exe
 .snapshotignore
