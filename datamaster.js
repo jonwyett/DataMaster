@@ -1,71 +1,156 @@
 /**
- * ver .0.0 2025/07/07
+ * DataMaster v2.0 - Core Scaffold
+ * A powerful, intuitive Swiss Army Knife for JavaScript data manipulation
  */
 
 (function(global) {
     'use strict';
 
-    /******* HELPER FUNCTIONS (Private Scope) **********************************************************/
-
-    function copy(data) {
-        return JSON.parse(JSON.stringify(data));
+    // --- Helper Functions (Stateless, defined outside of class) ---
+    
+    /**
+     * Creates a deep copy of data using JSON serialization
+     * @param {*} data - Data to copy
+     * @returns {*} Deep copy of the data or error indicator
+     */
+    function deepCopy(data) {
+        if (data === undefined) {
+            return undefined;
+        }
+        if (data === null) {
+            return null;
+        }
+        try {
+            return JSON.parse(JSON.stringify(data));
+        } catch (error) {
+            return { error: true, message: 'Failed to create deep copy: ' + error.message };
+        }
     }
 
-    function multiFieldSort(fields, directions, primers) {
-        return function (a, b) {
-            for (let i = 0; i < fields.length; i++) {
-                const field = fields[i];
-                const isDescending = directions[i];
-                const primer = primers && primers[i];
-                const sortOrder = isDescending ? -1 : 1;
-
-                let key = function(x) {
-                    return x[field];
-                };
-                
-                if (primer) {
-                    key = function(x) {
-                        return primer(x[field]);
-                    };
-                }
-                
-                const valueA = key(a);
-                const valueB = key(b);
-
-                if (valueA > valueB) {
-                    return sortOrder;
-                } else if (valueA < valueB) {
-                    return -sortOrder;
+    /**
+     * Converts a recordset to a table format
+     * @param {Array<Object>} recordset - Array of objects
+     * @returns {Object} Object with fields array and table array, or error indicator
+     */
+    function recordsetToTable(recordset) {
+        if (!Array.isArray(recordset)) {
+            return { error: true, message: 'Input must be an array' };
+        }
+        
+        if (recordset.length === 0) {
+            return { fields: [], table: [] };
+        }
+        
+        if (typeof recordset[0] !== 'object' || recordset[0] === null) {
+            return { error: true, message: 'Array elements must be objects' };
+        }
+        
+        const fields = Object.keys(recordset[0]);
+        const table = [];
+        
+        for (let i = 0; i < recordset.length; i++) {
+            if (typeof recordset[i] !== 'object' || recordset[i] === null) {
+                return { error: true, message: 'All array elements must be objects' };
+            }
+            
+            const row = [];
+            for (let j = 0; j < fields.length; j++) {
+                const fieldName = fields[j];
+                if (recordset[i].hasOwnProperty(fieldName)) {
+                    row.push(recordset[i][fieldName]);
+                } else {
+                    row.push(null);
                 }
             }
-            return 0;
-        };
+            table.push(row);
+        }
+        
+        return { fields, table };
     }
 
-    function csvToTable(csv, options = {}) {
-        const table = [];
-        const sep = options.isTSV ? '\t' : ',';
+    /**
+     * Converts a table to a recordset format
+     * @param {Array<Array>} table - 2D array of data
+     * @param {Array<string>} fields - Field names
+     * @returns {Array<Object>} Array of objects or error indicator
+     */
+    function tableToRecordset(table, fields) {
+        if (!Array.isArray(table)) {
+            return { error: true, message: 'Table must be an array' };
+        }
+        
+        if (!Array.isArray(fields)) {
+            return { error: true, message: 'Fields must be an array' };
+        }
+        
+        if (table.length === 0) {
+            return [];
+        }
+        
+        const recordset = [];
+        
+        for (let row = 0; row < table.length; row++) {
+            if (!Array.isArray(table[row])) {
+                return { error: true, message: 'All table rows must be arrays' };
+            }
+            
+            const record = {};
+            for (let field = 0; field < fields.length; field++) {
+                if (typeof fields[field] !== 'string') {
+                    return { error: true, message: 'All field names must be strings' };
+                }
+                record[fields[field]] = table[row][field] !== undefined ? table[row][field] : null;
+            }
+            recordset.push(record);
+        }
+        
+        return recordset;
+    }
+
+    /**
+     * Converts CSV string to table format
+     * @param {string} csvString - CSV data as string
+     * @param {Object} options - Parsing options
+     * @returns {Object} Object with fields array and table array, or error indicator
+     */
+    function csvToTable(csvString, options = {}) {
+        if (typeof csvString !== 'string') {
+            return { error: true, message: 'CSV input must be a string' };
+        }
+        
+        if (csvString.length === 0) {
+            return { fields: [], table: [] };
+        }
+        
+        const isTSV = options.isTSV || false;
+        const headersInFirstRow = options.headersInFirstRow || false;
+        const sep = isTSV ? '\t' : ',';
         const cr = options.noCR ? '\n' : '\r\n';
         
+        const table = [];
         let cell = '';
         let row = [];
         let started = false;
         let protectedMode = false;
         let cursor = 0;
-
+        
         function isChar(str) {
-            const test = csv.substr(cursor, str.length);
+            let test = '';
+            const l = str.length;
+            for (let i = 0; i < l; i++) {
+                test += csvString[cursor + i];
+            }
             if (str === test) {
-                cursor += str.length;
+                cursor += l;
                 return true;
             }
             return false;
         }
-
-        while (cursor < csv.length) {
+        
+        while (cursor < csvString.length) {
             if (started) {
                 if (protectedMode) {
-                    if (isChar('"' + sep)) { 
+                    if (isChar('\"' + sep)) {
                         row.push(cell);
                         cell = '';
                         started = false;
@@ -77,10 +162,10 @@
                         row = [];
                         started = false;
                         protectedMode = false;
-                    } else if (isChar('""')) {
-                       cell += '"';
+                    } else if (isChar('\"\"')) {
+                        cell += '"';
                     } else {
-                        cell += csv[cursor];
+                        cell += csvString[cursor];
                         cursor++;
                     }
                 } else {
@@ -99,7 +184,7 @@
                     } else if (isChar('""')) {
                         cell += '"';
                     } else {
-                        cell += csv[cursor];
+                        cell += csvString[cursor];
                         cursor++;
                     }
                 }
@@ -117,1229 +202,1597 @@
                     row = [];
                     cell = '';
                     started = false;
-                    protectedMode = false;    
+                    protectedMode = false;
                 } else {
-                    cell = csv[cursor];
+                    cell = csvString[cursor];
                     started = true;
-                    protectedMode = false;  
-                    cursor++; 
+                    protectedMode = false;
+                    cursor++;
                 }
             }
-        } 
-
-        return table;
-    }
-
-    function recordsetToRecordTable(data) {
-        const fieldNames = Object.keys(data[0]);
-        const table = [];
-
-        for (let i = 0; i < data.length; i++) {
-            const row = [];
-            for (let j = 0; j < fieldNames.length; j++) {
-                const fieldName = fieldNames[j];
-                if (data[i].hasOwnProperty(fieldName)) {
-                    row.push(data[i][fieldName]);
-                } 
-            }
-            table.push(row);
         }
         
-        return {
-            table: table,
-            fields: fieldNames
-        };
-    }
-
-    function recordtableToRecordset(rTable) {
-        const res = [];
-        for (let row = 0; row < rTable.table.length; row++) {
-            const rowData = {};
-            for (let field = 0; field < rTable.fields.length; field++) {
-                rowData[rTable.fields[field]] = rTable.table[row][field];
-            }
-            res.push(rowData);
+        // Handle any remaining data
+        if (cell || row.length > 0) {
+            if (cell) row.push(cell);
+            if (row.length > 0) table.push(row);
         }
-        return res;
+        
+        let fields = [];
+        let dataTable = table;
+        
+        if (headersInFirstRow && table.length > 0) {
+            fields = table[0];
+            dataTable = table.slice(1);
+            
+            // Validate field names
+            for (let i = 0; i < fields.length; i++) {
+                if (fields[i] === null || fields[i] === undefined) {
+                    fields[i] = 'Field' + i;
+                } else {
+                    fields[i] = fields[i].toString();
+                }
+            }
+        } else {
+            // Generate numeric field names
+            if (table.length > 0) {
+                for (let i = 0; i < table[0].length; i++) {
+                    fields.push(i.toString());
+                }
+            }
+        }
+        
+        return { fields, table: dataTable };
     }
 
-    function createCSV(data, options = {}) {
+    /**
+     * Converts table data to CSV string
+     * @param {Array<Array>} table - 2D array of data
+     * @param {Array<string>} fields - Field names
+     * @param {Object} options - Export options
+     * @returns {string} CSV formatted string or error indicator
+     */
+    function tableToCsv(table, fields, options = {}) {
+        if (!Array.isArray(table)) {
+            return { error: true, message: 'Table must be an array' };
+        }
+        
+        if (!Array.isArray(fields)) {
+            return { error: true, message: 'Fields must be an array' };
+        }
+        
         const newLineString = options.newLineString || '\r\n';
-        const startCol = options.startCol || 0;
-        const startRow = options.startRow || 0;
-
-        let CSV = '';
+        const includeHeaders = options.includeHeaders !== false;
         
         function escape(val) {
-            if (typeof val === 'undefined' || val === null) { 
-                val = ''; 
+            if (val === null || val === undefined) {
+                return '""';
             }
-            val = val.toString();
-            
-            val = val.replace(/"{2,}/g, '"');
-            val = val.replace(/"/g, '""');
-            if (options.removeNewLines) {
-                val = val.replace(/(\r\n|\r|\n)/g, ' ');
+            try {
+                val = val.toString();
+                // Replace quotes with double quotes
+                val = val.replace(/"/g, '""');
+                // Wrap in quotes if contains comma, newline, or quotes
+                if (val.includes(',') || val.includes('\n') || val.includes('\r') || val.includes('"')) {
+                    val = '"' + val + '"';
+                }
+                return val;
+            } catch (error) {
+                return '""'; // Return empty quoted string on conversion failure
             }
-
-            val = '"' + val + '"';
-            return val;
-        }
-
-        if (options.skipFields !== true) { 
-            for (let f = 0; f < data.fields.length; f++) {
-                CSV += escape(data.fields[f]) + ',';
-            }
-            CSV = CSV.substring(0, CSV.length - 1);
-            CSV += newLineString;
         }
         
-        for (let r = startRow; r < data.table.length; r++) {
-            for (let c = startCol; c < data.table[r].length; c++) {
-                CSV += escape(data.table[r][c]) + ',';
-            }
-            CSV = CSV.substring(0, CSV.length - 1);
-            CSV += newLineString;
+        let csv = '';
+        
+        if (includeHeaders && fields.length > 0) {
+            csv += fields.map(escape).join(',') + newLineString;
         }
-
-        return CSV;
+        
+        for (let r = 0; r < table.length; r++) {
+            if (!Array.isArray(table[r])) {
+                return { error: true, message: 'All table rows must be arrays' };
+            }
+            
+            const row = [];
+            for (let c = 0; c < table[r].length; c++) {
+                row.push(escape(table[r][c]));
+            }
+            csv += row.join(',') + newLineString;
+        }
+        
+        return csv;
     }
 
-    // Advanced search functionality preserved from original
-    function advancedSearch(query, queryFunctions, table, fields) {
-        function looseCaseInsensitiveCompare(value, query, forceCaseSensitivity) {
-            if (value == null || query == null) {
-                return false;
-            }
-
-            value = String(value);
-            query = String(query);
-
-            if (!forceCaseSensitivity) {
-                value = value.toLowerCase();
-                query = query.toLowerCase();
-            }
-            
-            let regexStr = '';
-            for (let i = 0; i < query.length; i++) {
-                if (query[i] === '%') {
-                    regexStr += '.*';
-                } else if (query[i] === '_') {
-                    regexStr += '.';
-                } else {
-                    regexStr += query[i];
-                }
-            }
-            const regex = new RegExp(`^${regexStr}$`);
-            return regex.test(value);
-        }
-        
-        function parseFunctionString(functionString) {
-            const openParenIndex = functionString.indexOf('(');
-            const closeParenIndex = functionString.lastIndexOf(')');
-
-            const functionName = openParenIndex === -1 ? 
-                functionString : 
-                functionString.substring(0, openParenIndex);
-            let arrayContent = [];
-
-            if (openParenIndex !== -1 && closeParenIndex !== -1) {
-                const arrayContentString = functionString.substring(
-                    openParenIndex + 1, closeParenIndex
-                );
-
-                try {
-                    arrayContent = eval('[' + arrayContentString + ']');
-                } catch (error) {
-                    return functionString;
-                }
-            }
-
-            return {
-                name: functionName,
-                params: arrayContent
-            };
-        }
-
-        function evaluateSingleOperation(data, operation) {
-            const operatorPattern = /(=|!=)/g;
-            const [index, operator, value] = operation.split(operatorPattern);
-            const cleanValue = value.replace(/['"]/g, '');
-            
-            if (!isNaN(index) && index < data.length) {
-                let matchFound = false; 
-                
-                if (cleanValue.charAt(0) === '$') {
-                    const functionString = cleanValue.substring(1);
-                    const functionParts = parseFunctionString(functionString);
-                    const functionName = functionParts.name;
-                    const functionParams = functionParts.params;
-                    if (typeof queryFunctions !== 'undefined') {
-                        if (typeof queryFunctions[functionName] === 'function') {
-                            matchFound = queryFunctions[functionName](data[index], functionParams);
-                        } else {
-                            matchFound = looseCaseInsensitiveCompare(data[index], cleanValue);  
-                        }
-                    }
-                } else { 
-                    matchFound = looseCaseInsensitiveCompare(data[index], cleanValue);
-                }
-                
-                matchFound = operator === '!=' ? !matchFound : matchFound;
-                return matchFound ? 'true' : 'false';
-            }
-
-            return 'false';
-        }
-       
-        function replaceAndEvaluateExpressions(data, query) {
-            const regex = /\d+\s*(?:!=|=)\s*'[^']*'/g;
-            let match;
-            let modifiedStr = query;
-
-            while ((match = regex.exec(query)) !== null) {
-                const expression = match[0];
-                const evaluatedValue = evaluateSingleOperation(data, expression);
-                modifiedStr = modifiedStr.replace(expression, evaluatedValue);
-            }
-
-            return modifiedStr;
-        }
-
-        function evaluateLogicalExpression(expression) {
-            const orParts = expression.split(' OR ');
-
-            for (const orPart of orParts) {
-                const andParts = orPart.split(' AND ');
-                let andResult = true;
-
-                for (const andPart of andParts) {
-                    if (andPart === 'false') {
-                        andResult = false;
-                        break;
-                    }
-                }
-
-                if (andResult) {
-                    return true;
-                }
-            }
-
+    /**
+     * Checks if an item is in a list using soft equivalence (1 == '1')
+     * @param {Array} list - The list to check against
+     * @param {*} item - The item to find
+     * @returns {boolean} True if item is found
+     */
+    function itemInList(list, item) {
+        if (!Array.isArray(list)) {
             return false;
         }
+        
+        for (let i = 0; i < list.length; i++) {
+            if (list[i] == item) { // Soft check
+                return true;
+            }
+        }
+        
+        return false;
+    }
 
-        function evaluateNestedExpression(expression) {
-            let start = -1;
-            let end = -1;
-            let depth = 0;
-
-            for (let i = 0; i < expression.length; i++) {
-                if (expression[i] === '(') {
-                    if (start === -1) {
-                        start = i;
+    /**
+     * Returns a single column from a table
+     * @param {Array<Array>} table - 2D array of data
+     * @param {number} column - The index of the column to return
+     * @param {boolean} [distinct=false] - Whether to return only unique values
+     * @returns {Array} Array of column values
+     */
+    function getTableColumn(table, column, distinct = false) {
+        if (!Array.isArray(table)) {
+            return [];
+        }
+        
+        const col = [];
+        
+        try {
+            for (let row = 0; row < table.length; row++) {
+                if (!Array.isArray(table[row]) || column >= table[row].length) {
+                    continue;
+                }
+                
+                if (distinct) {
+                    if (!itemInList(col, table[row][column])) {
+                        col.push(table[row][column]);
                     }
-                    depth++;
-                } else if (expression[i] === ')') {
-                    depth--;
-                    if (depth === 0) {
-                        end = i;
-                        break;
-                    }
+                } else {
+                    col.push(table[row][column]);
                 }
             }
+            return col;
+        } catch (error) {
+            return [];
+        }
+    }
 
-            if (start === -1 || end === -1) {
-                return evaluateLogicalExpression(expression) ? 'true' : 'false';
+    /**
+     * Returns a single row from a table
+     * @param {Array<Array>} table - 2D array of data
+     * @param {number} rowIndex - The index of the row to return
+     * @returns {Array|null} Array of row values or null if not found
+     */
+    function getTableRow(table, rowIndex) {
+        if (!Array.isArray(table)) {
+            return null;
+        }
+        
+        if (rowIndex < 0 || rowIndex >= table.length) {
+            return null;
+        }
+        
+        try {
+            const row = table[rowIndex];
+            if (!Array.isArray(row)) {
+                return null;
             }
-
-            const innerExpression = expression.substring(start + 1, end);
-            const innerResult = evaluateNestedExpression(innerExpression);
             
-            const newExpression = expression.substring(0, start) + innerResult + 
-                                    expression.substring(end + 1);
-
-            return evaluateNestedExpression(newExpression);
+            // Return a copy of the row to prevent external modification
+            return [...row];
+        } catch (error) {
+            return null;
         }
+    }
 
-        function expandAllFields(query, fields) {
-            const pattern = /(OR|AND)\*\s*(=|!=)\s*\'([^\']+)\'/g;
-
-            function replaceMatch(match, logicalOperator, operator, value) {
-                const conditions = fields.map(column => `${column}${operator}'${value}'`);
-                const joiner = logicalOperator === 'OR' ? ' OR ' : ' AND ';
-                return '(' + conditions.join(joiner) + ')';
+    /**
+     * Tests if a row is a duplicate based on specified column indexes
+     * @param {Array} rowData - The row to test
+     * @param {Array<Array>} existingTable - The table to check against
+     * @param {Array<number>} columnIndexes - The column indexes to compare
+     * @returns {boolean} True if the row is a duplicate
+     */
+    function isRowDuplicate(rowData, existingTable, columnIndexes) {
+        if (!Array.isArray(rowData) || !Array.isArray(existingTable) || !Array.isArray(columnIndexes)) {
+            return false;
+        }
+        
+        for (let existingRow = 0; existingRow < existingTable.length; existingRow++) {
+            if (!Array.isArray(existingTable[existingRow])) {
+                continue; // Skip invalid rows
             }
-
-            return query.replace(pattern, replaceMatch);
-        }
-
-        // Main search logic
-        query = expandAllFields(query, fields);
-        const resultData = [];
-        const resultIndices = [];
-
-        // Replace field names with corresponding indices
-        for (let i = 0; i < fields.length; i++) {
-            const fieldName = fields[i];
-            const regExpEqual = new RegExp(fieldName + '=', 'g');
-            query = query.replace(regExpEqual, i.toString() + '=');
-            const regExpNotEqual = new RegExp(fieldName + '!=', 'g');
-            query = query.replace(regExpNotEqual, i.toString() + '!=');
-        }
-
-        // Loop through the data and add matches to the result
-        for (let d = 0; d < table.length; d++) {
-            const booleanExpression = replaceAndEvaluateExpressions(table[d], query);
-            const result = evaluateNestedExpression(booleanExpression);
             
-            if (result === 'true') {
-                resultData.push(table[d]);
-                resultIndices.push(d);
+            let isMatch = true;
+            
+            // Check all specified columns for a match
+            for (let col = 0; col < columnIndexes.length; col++) {
+                const columnIndex = columnIndexes[col];
+                
+                // Use soft comparison to match original behavior
+                if (existingTable[existingRow][columnIndex] != rowData[columnIndex]) {
+                    isMatch = false;
+                    break;
+                }
+            }
+            
+            if (isMatch) {
+                return true; // Found a duplicate
             }
         }
+        
+        return false; // No duplicate found
+    }
 
-        return {
-            table: resultData,
-            indices: resultIndices
+    /**
+     * Generates a comparator function for sorting an array of arrays based on
+     * multiple fields and corresponding sort orders.
+     * @param {Array<number>} fields - Array of column indices to sort by
+     * @param {Array<boolean>} directions - Array of booleans where true = descending, false = ascending
+     * @param {Array<Function>} [primers] - Optional array of functions to transform each field before comparison
+     * @returns {Function} Comparator function for Array.prototype.sort
+     */
+    function multiFieldSort(fields, directions, primers) {
+        if (!Array.isArray(fields) || !Array.isArray(directions)) {
+            return function() { return 0; }; // Return neutral comparator if invalid inputs
+        }
+        
+        return function(a, b) {
+            // Validate that both items are arrays
+            if (!Array.isArray(a) || !Array.isArray(b)) {
+                return 0;
+            }
+            
+            // Iterate over each field provided
+            for (let i = 0; i < fields.length; i++) {
+                const field = fields[i];
+                const isDescending = directions[i] || false;
+                const primer = primers && primers[i];
+                
+                // Determine sort order (1 for ascending, -1 for descending)
+                const sortOrder = isDescending ? -1 : 1;
+                
+                // Get values from both arrays
+                let valueA = a[field];
+                let valueB = b[field];
+                
+                // Apply primer function if provided
+                if (typeof primer === 'function') {
+                    try {
+                        valueA = primer(valueA);
+                        valueB = primer(valueB);
+                    } catch (error) {
+                        // If primer fails, continue with original values
+                        valueA = a[field];
+                        valueB = b[field];
+                    }
+                }
+                
+                // Handle null/undefined values - sort them to the end
+                if (valueA == null && valueB == null) {
+                    continue; // Both null, check next field
+                }
+                if (valueA == null) {
+                    return 1; // Null values go to end regardless of sort order
+                }
+                if (valueB == null) {
+                    return -1; // Null values go to end regardless of sort order
+                }
+                
+                // Perform the comparison for the current field
+                if (valueA > valueB) {
+                    return sortOrder;
+                } else if (valueA < valueB) {
+                    return -sortOrder;
+                }
+                // If values are equal, continue to next field
+            }
+            
+            // All fields are equal
+            return 0;
         };
     }
 
-    /******* THE DATAMASTER CLASS **********************************************************/
-
-    class DataMaster {
-        constructor(table, fields, options = {}) {
-            this._table = table || [];
-            this._fields = fields || [];
-            this._options = this._validateOptions(options);
+    /**
+     * Validates and converts field references to column indexes
+     * @param {Array<string>} fieldNames - The field names array
+     * @param {Array<string|number>} fields - Fields to validate and convert
+     * @returns {Object} Object with {success: boolean, indexes: Array<number>, error: string}
+     */
+    function validateAndConvertFields(fieldNames, fields) {
+        if (!Array.isArray(fieldNames) || !Array.isArray(fields)) {
+            return { success: false, indexes: [], error: 'Invalid field names or fields array' };
         }
+        
+        const validIndexes = [];
+        
+        for (let i = 0; i < fields.length; i++) {
+            let columnIndex;
+            
+            if (typeof fields[i] === 'number') {
+                if (fields[i] < 0 || fields[i] >= fieldNames.length) {
+                    return { 
+                        success: false, 
+                        indexes: [], 
+                        error: `Field index ${fields[i]} is out of bounds` 
+                    };
+                }
+                columnIndex = fields[i];
+            } else if (typeof fields[i] === 'string') {
+                columnIndex = fieldNames.indexOf(fields[i]);
+                if (columnIndex === -1) {
+                    return { 
+                        success: false, 
+                        indexes: [], 
+                        error: `Field '${fields[i]}' not found` 
+                    };
+                }
+            } else {
+                return { 
+                    success: false, 
+                    indexes: [], 
+                    error: 'Field references must be strings or numbers' 
+                };
+            }
+            
+            validIndexes.push(columnIndex);
+        }
+        
+        return { success: true, indexes: validIndexes, error: null };
+    }
 
-        _validateOptions(options) {
-            const defaultOptions = {
-                errorMode: 'standard',
-                onError: null
+    /**
+     * Reorders table data and fields based on the specified field order
+     * @param {Array<Array>} table - The table data to reorder
+     * @param {Array<string>} fields - The current field names
+     * @param {Array<string|number>} order - The fields/indexes to keep and their order
+     * @returns {Object} Object with {success: boolean, table: Array<Array>, fields: Array<string>, error: string}
+     */
+    function reorderTableData(table, fields, order) {
+        if (!Array.isArray(table) || !Array.isArray(fields) || !Array.isArray(order)) {
+            return { 
+                success: false, 
+                table: [], 
+                fields: [], 
+                error: 'Invalid table, fields, or order parameters' 
             };
-            return Object.assign(defaultOptions, options);
+        }
+        
+        if (order.length === 0) {
+            return { 
+                success: false, 
+                table: [], 
+                fields: [], 
+                error: 'Order array cannot be empty' 
+            };
+        }
+        
+        try {
+            // Validate and convert field references to indexes
+            const validation = validateAndConvertFields(fields, order);
+            if (!validation.success) {
+                return { 
+                    success: false, 
+                    table: [], 
+                    fields: [], 
+                    error: validation.error 
+                };
+            }
+            
+            const fieldIndexes = validation.indexes;
+            const newTable = [];
+            const newFields = [];
+            
+            // Build new field names array
+            for (let i = 0; i < order.length; i++) {
+                if (typeof order[i] === 'number') {
+                    // If order item was an index, use the field name at that index
+                    newFields.push(fields[order[i]]);
+                } else {
+                    // If order item was a field name, use it directly
+                    newFields.push(order[i]);
+                }
+            }
+            
+            // Reorder each row
+            for (let r = 0; r < table.length; r++) {
+                if (!Array.isArray(table[r])) {
+                    continue; // Skip invalid rows
+                }
+                
+                const newRow = [];
+                for (let i = 0; i < fieldIndexes.length; i++) {
+                    const columnIndex = fieldIndexes[i];
+                    newRow.push(table[r][columnIndex] !== undefined ? table[r][columnIndex] : null);
+                }
+                newTable.push(newRow);
+            }
+            
+            return { 
+                success: true, 
+                table: newTable, 
+                fields: newFields, 
+                error: null 
+            };
+            
+        } catch (error) {
+            return { 
+                success: false, 
+                table: [], 
+                fields: [], 
+                error: 'Failed to reorder data: ' + error.message 
+            };
+        }
+    }
+
+    /**
+     * Filters table data based on a key-value object using AND logic
+     * @param {Array<Array>} table - The table data to filter
+     * @param {Array<string>} fields - The field names
+     * @param {Object} filterObject - Object with field-value pairs for filtering
+     * @returns {Object} Object with {success: boolean, table: Array<Array>, indices: Array<number>, error: string}
+     */
+    function filterTableByObject(table, fields, filterObject) {
+        if (!Array.isArray(table) || !Array.isArray(fields)) {
+            return { 
+                success: false, 
+                table: [], 
+                indices: [],
+                error: 'Invalid table or fields parameters' 
+            };
+        }
+        
+        if (typeof filterObject !== 'object' || filterObject === null || Array.isArray(filterObject)) {
+            return { 
+                success: false, 
+                table: [], 
+                indices: [],
+                error: 'Filter must be an object' 
+            };
+        }
+        
+        const filterKeys = Object.keys(filterObject);
+        if (filterKeys.length === 0) {
+            // Return all rows and their indices
+            const allIndices = [];
+            for (let i = 0; i < table.length; i++) {
+                allIndices.push(i);
+            }
+            return { success: true, table: [...table], indices: allIndices, error: null };
+        }
+        
+        try {
+            // Validate that all filter keys exist as field names
+            const columnIndexes = {};
+            for (let i = 0; i < filterKeys.length; i++) {
+                const fieldName = filterKeys[i];
+                const columnIndex = fields.indexOf(fieldName);
+                
+                if (columnIndex === -1) {
+                    return { 
+                        success: false, 
+                        table: [], 
+                        indices: [],
+                        error: `Field '${fieldName}' not found` 
+                    };
+                }
+                
+                columnIndexes[fieldName] = columnIndex;
+            }
+            
+            // Filter the table
+            const filteredTable = [];
+            const filteredIndices = [];
+            
+            for (let r = 0; r < table.length; r++) {
+                if (!Array.isArray(table[r])) {
+                    continue; // Skip invalid rows
+                }
+                
+                let includeRow = true;
+                
+                // Check all filter conditions (AND logic)
+                for (let f = 0; f < filterKeys.length; f++) {
+                    const fieldName = filterKeys[f];
+                    const expectedValue = filterObject[fieldName];
+                    const columnIndex = columnIndexes[fieldName];
+                    const actualValue = table[r][columnIndex];
+                    
+                    // Use soft comparison to match original behavior
+                    if (actualValue != expectedValue) {
+                        includeRow = false;
+                        break;
+                    }
+                }
+                
+                if (includeRow) {
+                    filteredTable.push([...table[r]]); // Add a copy of the row
+                    filteredIndices.push(r); // Add the original row index
+                }
+            }
+            
+            return { success: true, table: filteredTable, indices: filteredIndices, error: null };
+            
+        } catch (error) {
+            return { 
+                success: false, 
+                table: [], 
+                indices: [],
+                error: 'Failed to filter table: ' + error.message 
+            };
+        }
+    }
+
+    /**
+     * Filters table data based on a function that receives row objects
+     * @param {Array<Array>} table - The table data to filter
+     * @param {Array<string>} fields - The field names
+     * @param {Function} filterFunction - Function that receives row object and returns boolean
+     * @returns {Object} Object with {success: boolean, table: Array<Array>, indices: Array<number>, error: string}
+     */
+    function filterTableByFunction(table, fields, filterFunction) {
+        if (!Array.isArray(table) || !Array.isArray(fields)) {
+            return { 
+                success: false, 
+                table: [], 
+                indices: [],
+                error: 'Invalid table or fields parameters' 
+            };
+        }
+        
+        if (typeof filterFunction !== 'function') {
+            return { 
+                success: false, 
+                table: [], 
+                indices: [],
+                error: 'Filter must be a function' 
+            };
+        }
+        
+        try {
+            const filteredTable = [];
+            const filteredIndices = [];
+            
+            for (let r = 0; r < table.length; r++) {
+                if (!Array.isArray(table[r])) {
+                    continue; // Skip invalid rows
+                }
+                
+                // Convert row to object for the filter function
+                const rowObject = {};
+                for (let c = 0; c < fields.length && c < table[r].length; c++) {
+                    rowObject[fields[c]] = table[r][c];
+                }
+                
+                try {
+                    // Apply the filter function
+                    const includeRow = filterFunction(rowObject);
+                    
+                    if (includeRow === true) {
+                        filteredTable.push([...table[r]]); // Add a copy of the row
+                        filteredIndices.push(r); // Add the original row index
+                    }
+                    // If function returns falsy or throws, exclude the row
+                } catch (filterError) {
+                    // Continue processing other rows if filter function fails
+                    continue;
+                }
+            }
+            
+            return { success: true, table: filteredTable, indices: filteredIndices, error: null };
+            
+        } catch (error) {
+            return { 
+                success: false, 
+                table: [], 
+                indices: [],
+                error: 'Failed to filter table: ' + error.message 
+            };
+        }
+    }
+
+    /**
+     * Performs case-insensitive comparison with wildcard support
+     * @param {*} value - The value to test
+     * @param {string} query - The query string with potential wildcards
+     * @param {boolean} [forceCaseSensitivity=false] - Whether to force case sensitivity
+     * @returns {boolean} True if the value matches the query
+     */
+    function looseCaseInsensitiveCompare(value, query, forceCaseSensitivity = false) {
+        // Check for null or undefined
+        if (value == null || query == null) {
+            return false;
+        }
+        
+        // Convert to string
+        value = String(value);
+        query = String(query);
+        
+        // Make case-insensitive unless forceCaseSensitivity is true
+        if (!forceCaseSensitivity) {
+            value = value.toLowerCase();
+            query = query.toLowerCase();
+        }
+        
+        // Handle wildcards
+        let regexStr = '';
+        for (let i = 0; i < query.length; i++) {
+            if (query[i] === '%') {
+                regexStr += '.*';
+            } else if (query[i] === '_') {
+                regexStr += '.';
+            } else {
+                // Escape special regex characters
+                regexStr += query[i].replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            }
+        }
+        
+        try {
+            const regex = new RegExp(`^${regexStr}$`);
+            return regex.test(value);
+        } catch (error) {
+            return false;
+        }
+    }
+
+    /**
+     * Parses a function string into name and parameters
+     * @param {string} functionString - The function string to parse
+     * @returns {Object|string} Object with name and params properties, or original string if parsing fails
+     */
+    function parseFunctionString(functionString) {
+        // Check for opening and closing paren 
+        const openParenIndex = functionString.indexOf('(');
+        const closeParenIndex = functionString.lastIndexOf(')');
+        
+        // Extract functionName and initialize arrayContent as empty array
+        const functionName = openParenIndex === -1 ? 
+            functionString : 
+            functionString.substring(0, openParenIndex);
+        let arrayContent = [];
+        
+        // Parse array content only if brackets are present
+        if (openParenIndex !== -1 && closeParenIndex !== -1) {
+            const arrayContentString = functionString.substring(
+                openParenIndex + 1, closeParenIndex
+            );
+            
+            // Wrap arrayContentString with brackets and evaluate to create array
+            try {
+                arrayContent = JSON.parse(`[${arrayContentString}]`);
+            } catch (error) {
+                return functionString;
+            }
+        }
+        
+        return {
+            name: functionName,
+            params: arrayContent
+        };
+    }
+
+    /**
+     * Evaluates a single operation (e.g., "1='smith'")
+     * @param {Array} data - The row data to evaluate against
+     * @param {string} operation - The operation string
+     * @param {Object} [queryFunctions={}] - Custom query functions
+     * @returns {string} 'true' or 'false'
+     */
+    function evaluateSingleOperation(data, operation, queryFunctions = {}) {
+        const operatorPattern = /(=|!=)/g;
+        const parts = operation.split(operatorPattern);
+        
+        if (parts.length !== 3) {
+            return 'false';
+        }
+        
+        const [index, operator, value] = parts;
+        
+        // Remove quotes from the value
+        const cleanValue = value.replace(/['"]/g, '');
+        
+        // Verify that the index is valid
+        const columnIndex = parseInt(index);
+        if (isNaN(columnIndex) || columnIndex < 0 || columnIndex >= data.length) {
+            return 'false';
+        }
+        
+        let matchFound = false;
+        
+        if (cleanValue.charAt(0) === '$') {
+            const functionString = cleanValue.substring(1);
+            const functionParts = parseFunctionString(functionString);
+            const functionName = functionParts.name;
+            const functionParams = functionParts.params;
+            
+            if (typeof queryFunctions[functionName] === 'function') {
+                try {
+                    matchFound = queryFunctions[functionName](data[columnIndex], functionParams);
+                } catch (error) {
+                    matchFound = false;
+                }
+            } else {
+                matchFound = looseCaseInsensitiveCompare(data[columnIndex], cleanValue);
+            }
+        } else {
+            matchFound = looseCaseInsensitiveCompare(data[columnIndex], cleanValue);
+        }
+        
+        // Invert matchFound if the operator is !=
+        matchFound = operator === '!=' ? !matchFound : matchFound;
+        
+        return matchFound ? 'true' : 'false';
+    }
+
+    /**
+     * Replaces field expressions with boolean results
+     * @param {Array} data - The row data to evaluate against
+     * @param {string} query - The query string with field expressions
+     * @param {Object} [queryFunctions={}] - Custom query functions
+     * @returns {string} Query string with expressions replaced by boolean values
+     */
+    function replaceAndEvaluateExpressions(data, query, queryFunctions = {}) {
+        const regex = /\d+\s*(?:!=|=)\s*'[^']*'/g;
+        let modifiedStr = query;
+        let match;
+        
+        while ((match = regex.exec(query)) !== null) {
+            const expression = match[0];
+            const evaluatedValue = evaluateSingleOperation(data, expression, queryFunctions);
+            modifiedStr = modifiedStr.replace(expression, evaluatedValue);
+        }
+        
+        return modifiedStr;
+    }
+
+    /**
+     * Evaluates a logical expression with AND/OR operators
+     * @param {string} expression - The boolean expression to evaluate
+     * @returns {boolean} The result of the logical evaluation
+     */
+    function evaluateLogicalExpression(expression) {
+        const orParts = expression.split(' OR ');
+        
+        for (const orPart of orParts) {
+            const andParts = orPart.split(' AND ');
+            let andResult = true;
+            
+            for (const andPart of andParts) {
+                if (andPart.trim() === 'false') {
+                    andResult = false;
+                    break;
+                }
+            }
+            
+            if (andResult) {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+
+    /**
+     * Evaluates nested expressions with parentheses
+     * @param {string} expression - The expression to evaluate
+     * @returns {string} 'true' or 'false'
+     */
+    function evaluateNestedExpression(expression) {
+        let start = -1;
+        let end = -1;
+        let depth = 0;
+        
+        // Find the inner-most parentheses
+        for (let i = 0; i < expression.length; i++) {
+            if (expression[i] === '(') {
+                if (start === -1) {
+                    start = i;
+                }
+                depth++;
+            } else if (expression[i] === ')') {
+                depth--;
+                if (depth === 0) {
+                    end = i;
+                    break;
+                }
+            }
+        }
+        
+        // Base case: if no parentheses are found, evaluate the expression directly
+        if (start === -1 || end === -1) {
+            return evaluateLogicalExpression(expression) ? 'true' : 'false';
+        }
+        
+        // Recursive case: evaluate the inner-most expression within the parentheses
+        const innerExpression = expression.substring(start + 1, end);
+        const innerResult = evaluateNestedExpression(innerExpression);
+        
+        // Substitute the inner result back into the original expression
+        const newExpression = expression.substring(0, start) + innerResult + 
+                              expression.substring(end + 1);
+        
+        // Recursively evaluate the new expression
+        return evaluateNestedExpression(newExpression);
+    }
+
+    /**
+     * Expands the * operator to match all fields
+     * @param {string} query - The query string with potential * operators
+     * @param {Array<string>} fields - The field names to expand against
+     * @returns {string} Query string with * operators expanded
+     */
+    function expandAllFields(query, fields) {
+        // Regular expression to match OR*=, OR*!=, AND*=, AND*!=
+        const pattern = /(OR|AND)\*\s*(=|!=)\s*'([^']+)'/g;
+        
+        // Replacement function
+        const replaceMatch = (match, logicalOperator, operator, value) => {
+            const conditions = fields.map(column => `${column}${operator}'${value}'`);
+            const joiner = logicalOperator === 'OR' ? ' OR ' : ' AND ';
+            return '(' + conditions.join(joiner) + ')';
+        };
+        
+        // Perform the replacement
+        return query.replace(pattern, replaceMatch);
+    }
+
+    /**
+     * Parses ORDER BY clause string into fields and order directions
+     * @param {string} orderByClause - String like "field1 ASC, field2 DESC" or "ORDER BY field1 ASC, field2 DESC"
+     * @returns {Object} Object with fields array and desc array (boolean values), or error string
+     */
+    function parseOrderByClause(orderByClause) {
+        // Check if the input is a string
+        if (typeof orderByClause !== 'string') {
+            return 'Error: Input must be a string';
+        }
+    
+        // Trim the input and remove 'ORDER BY' if present
+        orderByClause = orderByClause.trim();
+        const orderByPattern = /^ORDER\s+BY\s+/i;
+        if (orderByPattern.test(orderByClause)) {
+            orderByClause = orderByClause.replace(orderByPattern, '');
+        }
+    
+        // Split the clause by commas to get individual field clauses
+        const fieldClauses = orderByClause.split(/\s*,\s*/);
+    
+        const fields = [];
+        const orders = [];
+    
+        // Iterate over each field clause to extract field names and order
+        for (let i = 0; i < fieldClauses.length; i++) {
+            const fieldClause = fieldClauses[i].trim();
+    
+            // Default order is ascending (false)
+            let order = false;
+            let fieldName = fieldClause;
+    
+            // Check if the clause ends with DESC, indicating descending order
+            if (fieldClause.toUpperCase().endsWith(' DESC')) {
+                order = true;
+                fieldName = fieldClause.substring(0, fieldClause.length - 5).trim();
+            }
+            // Check if the clause ends with ASC, and remove it
+            else if (fieldClause.toUpperCase().endsWith(' ASC')) {
+                fieldName = fieldClause.substring(0, fieldClause.length - 4).trim();
+            }
+    
+            // Add the field name and order to the respective arrays
+            fields.push(fieldName);
+            orders.push(order);
+        }
+    
+        // Return the arrays in an object
+        return { fields: fields, desc: orders };
+    }
+
+    // --- The DataMaster Class ---
+    
+    class DataMaster {
+        /**
+         * Constructor is simple, meant for internal use by the factories
+         * @param {Array<Array>} table - 2D array of data
+         * @param {Array<string>} fields - Field names
+         * @param {Object} options - Configuration options
+         */
+        constructor(table, fields, options = {}) {
+            // Initialize with safe defaults first
+            this._table = [];
+            this._fields = [];
+            this._options = this._validateOptions(options);
+            
+            // Validate and set table
+            if (Array.isArray(table)) {
+                let validTable = true;
+                for (let i = 0; i < table.length; i++) {
+                    if (!Array.isArray(table[i])) {
+                        validTable = false;
+                        break;
+                    }
+                }
+                if (validTable) {
+                    this._table = table;
+                }
+            }
+            
+            // Validate and set fields
+            if (Array.isArray(fields)) {
+                this._fields = fields.map((field, index) => {
+                    if (typeof field === 'string') {
+                        return field;
+                    }
+                    return field !== null && field !== undefined ? field.toString() : 'Field' + index;
+                });
+            }
+        }
+        
+        /**
+         * Validates and normalizes options
+         * @private
+         */
+        _validateOptions(options) {
+            if (typeof options !== 'object' || options === null) {
+                options = {};
+            }
+            
+            const validErrorModes = ['standard', 'strict', 'silent'];
+            const errorMode = validErrorModes.includes(options.errorMode) ? options.errorMode : 'standard';
+            const onError = typeof options.onError === 'function' ? options.onError : null;
+            
+            return {
+                errorMode,
+                onError
+            };
+        }
+        
+        /**
+         * Executes a programmatic filter (object or function) against the DataMaster data
+         * @private
+         * @param {Object|Function} filter - Object with field-value pairs for AND filtering, or function that receives row object
+         * @returns {Object} Object with {success: boolean, table: Array<Array>, indices: Array<number>, error: string}
+         */
+        _executeProgrammaticFilter(filter) {
+            if (!Array.isArray(this._table) || !Array.isArray(this._fields)) {
+                return {
+                    success: false,
+                    table: [],
+                    indices: [],
+                    error: 'Invalid table or fields state'
+                };
+            }
+            
+            if (typeof filter === 'undefined') {
+                return {
+                    success: false,
+                    table: [],
+                    indices: [],
+                    error: 'Filter parameter is required'
+                };
+            }
+            
+            try {
+                let result;
+                
+                if (typeof filter === 'function') {
+                    // Use function-based filtering
+                    result = filterTableByFunction(this._table, this._fields, filter);
+                } else if (typeof filter === 'object' && filter !== null && !Array.isArray(filter)) {
+                    // Use object-based filtering
+                    result = filterTableByObject(this._table, this._fields, filter);
+                } else {
+                    return {
+                        success: false,
+                        table: [],
+                        indices: [],
+                        error: 'Filter must be an object or function'
+                    };
+                }
+                
+                if (!result.success) {
+                    return {
+                        success: false,
+                        table: [],
+                        indices: [],
+                        error: result.error
+                    };
+                }
+                
+                return {
+                    success: true,
+                    table: result.table,
+                    indices: result.indices,
+                    error: null
+                };
+                
+            } catch (error) {
+                return {
+                    success: false,
+                    table: [],
+                    indices: [],
+                    error: 'Failed to execute programmatic filter: ' + error.message
+                };
+            }
         }
 
-        _handleError(errorMessage, errorType = 'User Error') {
+        /**
+         * Executes a WHERE clause against the DataMaster data
+         * @private
+         * @param {string} clauseString - The WHERE clause to execute
+         * @param {Object} [queryFunctions={}] - Custom query functions
+         * @returns {Object} Object with {success: boolean, table: Array<Array>, indices: Array<number>, error: string}
+         */
+        _executeWhere(clauseString, queryFunctions = {}) {
+            if (!Array.isArray(this._table) || !Array.isArray(this._fields)) {
+                return {
+                    success: false,
+                    table: [],
+                    indices: [],
+                    error: 'Invalid table or fields state'
+                };
+            }
+            
+            if (typeof clauseString !== 'string') {
+                return {
+                    success: false,
+                    table: [],
+                    indices: [],
+                    error: 'Clause string must be a string'
+                };
+            }
+            
+            if (clauseString.length === 0) {
+                return {
+                    success: false,
+                    table: [],
+                    indices: [],
+                    error: 'Clause string cannot be empty'
+                };
+            }
+            
+            try {
+                // Run the expansion for the * operator
+                let query = expandAllFields(clauseString, this._fields);
+                
+                // The data to return with the matching rows
+                const resultData = [];
+                const resultIndices = [];
+                
+                // Convert field names to array indices
+                for (let i = 0; i < this._fields.length; i++) {
+                    const fieldName = this._fields[i];
+                    const regExpEqual = new RegExp(fieldName + '=', 'g');
+                    query = query.replace(regExpEqual, i.toString() + '=');
+                    const regExpNotEqual = new RegExp(fieldName + '!=', 'g');
+                    query = query.replace(regExpNotEqual, i.toString() + '!=');
+                }
+                
+                // Loop through the data and add matches to the result
+                for (let d = 0; d < this._table.length; d++) {
+                    if (!Array.isArray(this._table[d])) {
+                        continue; // Skip invalid rows
+                    }
+                    
+                    // Convert the query into a string of boolean logic
+                    const booleanExpression = replaceAndEvaluateExpressions(
+                        this._table[d], 
+                        query, 
+                        queryFunctions
+                    );
+                    
+                    // Evaluate the entire expression
+                    const result = evaluateNestedExpression(booleanExpression);
+                    
+                    // If the result is true, add that row to the result
+                    if (result === 'true') {
+                        resultData.push([...this._table[d]]); // Add a copy of the row
+                        resultIndices.push(d);
+                    }
+                }
+                
+                return {
+                    success: true,
+                    table: resultData,
+                    indices: resultIndices,
+                    error: null
+                };
+                
+            } catch (error) {
+                return {
+                    success: false,
+                    table: [],
+                    indices: [],
+                    error: 'Failed to execute WHERE clause: ' + error.message
+                };
+            }
+        }
+        
+        /**
+         * Central error handler - THE ONLY PLACE WHERE ERRORS ARE THROWN
+         * @private
+         * @param {string} errorMessage - The error message
+         * @param {string} errorType - The type of error ('UserError', 'InternalError', etc.)
+         * @param {string} returnTypeHint - Hint for return type ('DataMaster', 'Array', 'String', 'Primitive')
+         */
+        _handleError(errorMessage, errorType = 'UserError', returnTypeHint = 'DataMaster') {
             const errorObject = {
                 message: errorMessage,
                 type: errorType,
                 timestamp: new Date().toISOString()
             };
-
-            // Call user callback if provided
-            if (this._options.onError && typeof this._options.onError === 'function') {
-                this._options.onError(errorObject);
+            
+            // Call the onError callback if provided
+            if (this._options.onError) {
+                try {
+                    this._options.onError(errorObject);
+                } catch (callbackError) {
+                    console.error('Error in onError callback:', callbackError.message);
+                }
             }
-
-            // Handle based on error mode
+            
+            // Define catastrophic error types that always throw regardless of errorMode
+            const catastrophicErrorTypes = [
+                'InternalError',
+                'StateCorruption', 
+                'LogicError',
+                'CriticalError',
+                'NullReference'
+            ];
+            
+            // For catastrophic errors, always throw regardless of errorMode
+            if (catastrophicErrorTypes.includes(errorType)) {
+                throw new Error(`CRITICAL: ${errorMessage} (${errorType})`);
+            }
+            
+            // For user errors, handle based on configured errorMode
             switch (this._options.errorMode) {
                 case 'strict':
                     throw new Error(errorMessage);
-                
+                    
                 case 'silent':
                     console.error(errorMessage);
-                    break;
-                
+                    return this._createErrorValueByType(errorType, errorMessage, returnTypeHint);
+                    
                 case 'standard':
                 default:
-                    // Return error DataMaster for methods that return DataMaster
-                    // Individual methods will handle returning appropriate error values
-                    break;
+                    return this._createErrorValueByType(errorType, errorMessage, returnTypeHint);
             }
         }
-
-        _createErrorDataMaster(errorMessage) {
-            const errorDM = new DataMaster(
-                [['Invalid Parameter', errorMessage]], 
-                ['ErrorType', 'Message'],
-                this._options
-            );
-            return errorDM;
-        }
-
-        _findFieldIndex(field) {
-            if (typeof field === 'number') {
-                if (field < this._fields.length && field >= 0) {
-                    return field;
-                }
-                return false;
-            } else {
-                for (let f = 0; f < this._fields.length; f++) {
-                    if (this._fields[f] === field) {
-                        return f;
-                    }
-                }
-            }
-            return false;
-        }
-
-        _createFields(fields) {
-            if (typeof fields === 'undefined') {
-                this._fields = [];
-                for (let i = 0; i < this._table[0].length; i++) {
-                    this._fields.push(i.toString());
-                }    
-            } else {
-                const max = (this._fields.length < fields.length) ? this._fields.length : fields.length;
-                for (let f = 0; f < max; f++) {
-                    this._fields[f] = fields[f];
-                }
+        
+        /**
+         * Creates an error value based on the expected return type
+         * @private
+         * @param {string} errorType - The type of error
+         * @param {string} errorMessage - The error message
+         * @param {string} returnTypeHint - The expected return type
+         */
+        _createErrorValueByType(errorType, errorMessage, returnTypeHint) {
+            switch (returnTypeHint) {
+                case 'DataMaster':
+                    return new DataMaster(
+                        [[errorType, errorMessage]],
+                        ['ErrorType', 'Message'],
+                        this._options
+                    );
+                    
+                case 'Array':
+                    return [{ ErrorType: errorType, Message: errorMessage }];
+                    
+                case 'String':
+                    // Return a properly formatted CSV error string
+                    const escapedType = errorType.replace(/"/g, '""');
+                    const escapedMessage = errorMessage.replace(/"/g, '""');
+                    return `"${escapedType}","${escapedMessage}"`;
+                    
+                case 'Primitive':
+                default:
+                    return null;
             }
         }
-
-        _reorderData(table, fields, order) {
-            const res = {
-                table: [],
-                fields: []
-            };
-
-            try {
-                const fieldIndexes = [];
-                for (let o = 0; o < order.length; o++) {
-                    const index = this._findFieldIndex.call({_fields: fields}, order[o]);
-                    if (index !== false) {
-                        fieldIndexes.push(index);
-                    }
-                }
-
-                for (let r = 0; r < table.length; r++) {
-                    const rowData = [];
-                    for (let i = 0; i < fieldIndexes.length; i++) {
-                        rowData.push(table[r][fieldIndexes[i]]);
-                    }
-                    res.table.push(rowData);
-                }
-
-                for (let f = 0; f < order.length; f++) {
-                    if (typeof order[f] === 'number') {
-                        res.fields.push(fields[order[f]]);
-                    } else if (this._findFieldIndex.call({_fields: fields}, order[f]) !== false) {
-                        res.fields.push(order[f]);
-                    }
-                }
-            }
-            catch (e) { 
-                return res; 
-            }
-
-            return res;
-        }
-
-        // Static Factory Methods
+        
+        // --- Static Factory Methods ---
+        
+        /**
+         * Creates a DataMaster from a recordset (array of objects)
+         * @param {Array<Object>} recordset - Array of objects
+         * @param {Object} options - Configuration options
+         * @returns {DataMaster} New DataMaster instance
+         */
         static fromRecordset(recordset, options = {}) {
-            try {
-                if (!Array.isArray(recordset) || recordset.length === 0) {
-                    const dm = new DataMaster([], [], options);
-                    dm._handleError('Invalid recordset: must be a non-empty array');
-                    return dm._createErrorDataMaster('Invalid recordset provided');
-                }
-
-                const rTable = recordsetToRecordTable(recordset);
-                return new DataMaster(rTable.table, rTable.fields, options);
-            } catch (e) {
-                const dm = new DataMaster([], [], options);
-                return dm._createErrorDataMaster('Failed to create DataMaster from recordset');
+            const dm = new DataMaster([], [], options);
+            
+            if (!Array.isArray(recordset)) {
+                return dm._handleError('Input must be an array', 'UserError', 'DataMaster');
             }
+            
+            const result = recordsetToTable(recordset);
+            if (result.error) {
+                return dm._handleError(result.message, 'UserError', 'DataMaster');
+            }
+            
+            return new DataMaster(result.table, result.fields, options);
         }
-
+        
+        /**
+         * Creates a DataMaster from a table (2D array)
+         * @param {Array<Array>} table - 2D array of data
+         * @param {Object} options - Configuration options including headers
+         * @returns {DataMaster} New DataMaster instance
+         */
         static fromTable(table, options = {}) {
-            try {
-                if (!Array.isArray(table)) {
-                    const dm = new DataMaster([], [], options);
-                    return dm._createErrorDataMaster('Invalid table: must be an array');
-                }
-
-                const dm = new DataMaster(copy(table), [], options);
-                
-                if (table.length > 0) {
-                    dm._createFields();
-                    
-                    if (Array.isArray(options.headers)) {
-                        dm._createFields(options.headers);
-                    } else if (options.headersInFirstRow === true) {
-                        dm._createFields(table[0]);
-                        dm._table.splice(0, 1);
-                    }
-                }
-
-                return dm;
-            } catch (e) {
-                const dm = new DataMaster([], [], options);
-                return dm._createErrorDataMaster('Failed to create DataMaster from table');
+            const dm = new DataMaster([], [], options);
+            
+            if (!Array.isArray(table)) {
+                return dm._handleError('Input must be an array', 'UserError', 'DataMaster');
             }
+            
+            let fields = options.headers || [];
+            let dataTable = table;
+            
+            if (options.headersInFirstRow && table.length > 0) {
+                if (!Array.isArray(table[0])) {
+                    return dm._handleError('First row must be an array when headersInFirstRow is true', 'UserError', 'DataMaster');
+                }
+                fields = table[0];
+                dataTable = table.slice(1);
+            } else if (fields.length === 0 && table.length > 0) {
+                if (!Array.isArray(table[0])) {
+                    return dm._handleError('First row must be an array', 'UserError', 'DataMaster');
+                }
+                // Generate numeric field names
+                for (let i = 0; i < table[0].length; i++) {
+                    fields.push(i.toString());
+                }
+            }
+            
+            return new DataMaster(dataTable, fields, options);
         }
-
+        
+        /**
+         * Creates a DataMaster from CSV string
+         * @param {string} csvString - CSV data as string
+         * @param {Object} options - Configuration options
+         * @returns {DataMaster} New DataMaster instance
+         */
         static fromCsv(csvString, options = {}) {
-            try {
-                if (typeof csvString !== 'string') {
-                    const dm = new DataMaster([], [], options);
-                    return dm._createErrorDataMaster('Invalid CSV: must be a string');
-                }
-
-                const table = csvToTable(csvString, options);
-                const dm = new DataMaster(table, [], options);
-                
-                if (table.length > 0) {
-                    dm._createFields();
-                    
-                    if (Array.isArray(options.headers)) {
-                        dm._createFields(options.headers);
-                    } else if (options.headersInFirstRow === true) {
-                        dm._createFields(table[0]);
-                        dm._table.splice(0, 1);
-                    }
-                }
-
-                return dm;
-            } catch (e) {
-                const dm = new DataMaster([], [], options);
-                return dm._createErrorDataMaster('Failed to create DataMaster from CSV');
+            const dm = new DataMaster([], [], options);
+            
+            if (typeof csvString !== 'string') {
+                return dm._handleError('Input must be a string', 'UserError', 'DataMaster');
             }
+            
+            const result = csvToTable(csvString, options);
+            if (result.error) {
+                return dm._handleError(result.message, 'UserError', 'DataMaster');
+            }
+            
+            return new DataMaster(result.table, result.fields, options);
         }
-
+        
+        /**
+         * Creates a DataMaster from a generator template
+         * @param {Object} template - Generator template
+         * @param {Object} options - Configuration options
+         * @returns {DataMaster} New DataMaster instance
+         */
         static fromGenerator(template, options = {}) {
-            try {
-                const generator = new TableGenerator();
-                const table = generator.generate(template);
-                
-                return DataMaster.fromTable(table, {
-                    ...options,
-                    headersInFirstRow: template.settings && template.settings.includeHeaders
-                });
-            } catch (e) {
-                const dm = new DataMaster([], [], options);
-                return dm._createErrorDataMaster('Failed to create DataMaster from generator');
-            }
-        }
-
-        // Mutating Methods (return this)
-        modifyCell(rowIndex, field, newValue) {
-            try {
-                const index = this._findFieldIndex(field);
-                if (index !== false && rowIndex >= 0 && rowIndex < this._table.length) {
-                     this._table[rowIndex][index] = newValue;   
-                }
-            } catch (e) {
-                this._handleError('Failed to modify cell');
-            }
-            return this;
-        }
-
-        addRow(rowData, location) {
-            if (typeof rowData === 'undefined') { 
-                rowData = []; 
+            const dm = new DataMaster([], [], options);
+            
+            if (typeof template !== 'object' || template === null) {
+                return dm._handleError('Template must be an object', 'UserError', 'DataMaster');
             }
             
-            try {
-                let clean;
-                
-                if (!Array.isArray(rowData)) {
-                    clean = new Array(this._fields.length);
-                    
-                    for (let c = 0; c < clean.length; c++) { 
-                        clean[c] = null; 
-                    } 
-                    
-                    Object.keys(rowData).forEach(key => {
-                        const index = this._findFieldIndex(key);
-                        if (index !== false) {
-                            clean[index] = rowData[key];
-                        }
-                    });
-                } else {
-                    clean = rowData.slice();
-                    if (clean.length > this._fields.length) {
-                        clean = clean.slice(0, this._fields.length);
-                    } else if (clean.length < this._fields.length) {
-                        for (let i = clean.length; i < this._fields.length; i++) {
-                            clean.push(null);
-                        }
-                    }
-                }
-
-                if (typeof location === 'number') {
-                    if (location < 0) { location = 0; }
-                    if (location > this._table.length) { location = this._table.length; }
-                    this._table.splice(location, 0, clean);
-                } else {
-                    this._table.push(clean);
-                }
-                
-            } catch (e) {
-                this._handleError('Failed to add row');
+            // Placeholder for TableGenerator integration
+            // const generator = new TableGenerator();
+            // const table = generator.generate(template);
+            // return DataMaster.fromTable(table, options);
+            
+            return dm._handleError('Generator not yet implemented', 'NotImplemented', 'DataMaster');
+        }
+        
+        // --- Pure Serialization Methods (Non-Mutating) ---
+        
+        /**
+         * Converts DataMaster to recordset format
+         * @returns {Array<Object>} Array of objects
+         */
+        toRecordset() {
+            const result = tableToRecordset(this._table, this._fields);
+            if (result.error) {
+                return this._handleError(result.message, 'InternalError', 'Array');
+            }
+            return result;
+        }
+        
+        /**
+         * Converts DataMaster to table format
+         * @param {Object} options - Export options
+         * @returns {Array<Array>} 2D array with optional headers
+         */
+        toTable(options = {}) {
+            if (typeof options !== 'object' || options === null) {
+                options = {};
             }
             
-            return this;
-        }
-
-        removeRow(rowIndex) {
-            if (rowIndex >= 0 && rowIndex < this._table.length) {
-                this._table.splice(rowIndex, 1);
-            }
-            return this;
-        }
-
-        addColumn(name, data, location) {
-            if (typeof name === 'undefined') { 
-                this._handleError('Column name is required');
-                return this; 
-            }
-            if (typeof data === 'undefined') { 
-                data = []; 
-            }
-
-            try {
-                const clean = data.slice(0, this._table.length); 
-                if (clean.length < this._table.length) {
-                    for (let i = clean.length; i < this._table.length; i++) {
-                        clean.push(null);
-                    }
-                }
-
-                if (typeof location !== 'undefined') {
-                    const index = this._findFieldIndex(location);
-                    if (index !== false) {
-                        this._fields.splice(index, 0, name);
-                        for (let r = 0; r < this._table.length; r++) {
-                            this._table[r].splice(index, 0, clean[r]);
-                        } 
-                    }        
-                } else {
-                    this._fields.push(name);
-                    for (let r = 0; r < this._table.length; r++) {
-                        this._table[r].push(clean[r]);
-                    }     
-                }
-
-            } catch (e) {
-                this._handleError('Failed to add column');
-            }
-
-            return this;
-        }
-
-        removeColumn(field) {
-            const index = this._findFieldIndex(field);
-            if (index !== false) {
-                this._fields.splice(index, 1);
-                for (let r = 0; r < this._table.length; r++) {
-                    this._table[r].splice(index, 1);
-                }
-            }
-            return this;
-        }
-
-        formatColumn(field, formatFn) {
-            if (typeof formatFn !== 'function') { 
-                return this; 
-            }
-
-            const index = this._findFieldIndex(field);
-            if (index === false) { 
-                return this; 
-            }
-
-            for (let row = 0; row < this._table.length; row++) {
-                try {
-                    this._table[row][index] = formatFn(this._table[row][index]);
-                } catch (e) {
-                    // Continue on formatting errors
-                }
+            const tableCopy = deepCopy(this._table);
+            if (tableCopy.error) {
+                return this._handleError(tableCopy.message, 'InternalError', 'Array');
             }
             
-            return this;
-        }
-
-        formatRow(rowIndex, formatFn) {
-            if (typeof formatFn !== 'function') { 
-                return this; 
-            }
-            if (rowIndex >= this._table.length) { 
-                return this; 
-            }
-
-            for (let col = 0; col < this._table[rowIndex].length; col++) {
-                try {
-                    this._table[rowIndex][col] = formatFn(this._table[rowIndex][col]);
-                } catch (e) {
-                    // Continue on formatting errors
+            if (options.includeHeaders) {
+                const fieldsCopy = deepCopy(this._fields);
+                if (fieldsCopy.error) {
+                    return this._handleError(fieldsCopy.message, 'InternalError', 'Array');
                 }
+                return [fieldsCopy, ...tableCopy];
             }
             
-            return this;
+            return tableCopy;
         }
-
-        setFieldNames(fields) {
-            const max = fields.length < this._fields.length ? fields.length : this._fields.length; 
-            for (let f = 0; f < max; f++) {
-                this._fields[f] = fields[f];
-            }
-            return this;
-        }
-
-        limit(filter) {
-            const searchResult = this.search(filter);
-            this._table = searchResult._table;
-            return this;
-        }
-
-        sort(fieldOrFields, directionOrDirections) {
-            let fields = fieldOrFields;
-            let desc = directionOrDirections;
-            
-            if (!Array.isArray(fields)) { 
-                fields = [fields]; 
-            }
-            if (!Array.isArray(desc)) { 
-                desc = [desc]; 
-            }
-
-            const validFields = [];
-            for (let i = 0; i < fields.length; i++) {
-                if (isNaN(fields[i])) {
-                    const col = this._fields.indexOf(fields[i]);
-                    if (col >= 0) {
-                        validFields.push(col);
-                    }
-                } else {
-                    if (fields[i] >= 0 && fields[i] <= this._fields.length) {
-                        validFields.push(fields[i]);
-                    }
-                }
-            }
-
-            this._table.sort(multiFieldSort(validFields, desc));
-            return this;
-        }
-
-        pivot() {
-            try {
-                const pivot = { 
-                    table: [],
-                    fields: []
-                };
-
-                for (let f = 0; f < this._fields.length - 1; f++) {
-                    const data = [];
-                    for (let r = 0; r < this._table.length + 1; r++) { 
-                        data.push('XXX');
-                    }
-                    pivot.table.push(data);
-                }
-
-                pivot.fields = this._table.map(row => row[0]);
-                pivot.fields.unshift(this._fields[0]);
-                
-                for (let r = 0; r < this._fields.length - 1; r++) {
-                    pivot.table[r][0] = this._fields[r + 1];
-                }     
-                
-                for (let c = 0; c < this._fields.length - 1; c++) {
-                    for (let r = 0; r < this._table.length; r++) {
-                        pivot.table[c][r + 1] = this._table[r][c + 1]; 
-                    }
-                }
-                
-                this._table = pivot.table;
-                this._fields = pivot.fields;   
-            } catch(e) {
-                this._handleError('Failed to pivot table');
-            }
-
-            return this;
-        }
-
-        sumColumns(options = {}) {
-            const label = options.label;
-            let columns = options.columns;
-            const isAverage = options.isAverage;
-            const isNaNValue = options.isNaNValue;
-
-            if (typeof columns === 'undefined') {
-                columns = [];
-                for (let a = 0; a < this._fields.length; a++) {
-                    columns.push(a);
-                }
-                if (typeof label === 'string') {
-                    columns.shift(); 
-                }
+        
+        /**
+         * Converts DataMaster to CSV string
+         * @param {Object} options - Export options
+         * @returns {string} CSV formatted string
+         */
+        toCsv(options = {}) {
+            if (typeof options !== 'object' || options === null) {
+                options = {};
             }
             
-            const clean = [];
-            for (let i = 0; i < columns.length; i++) {
-                if (typeof columns[i] === 'string') {
-                    const index = this._findFieldIndex(columns[i]);
-                    if (index !== false) { 
-                        clean.push(index); 
-                    }
-                } else {
-                    if (columns[i] >= 0 && columns[i] < this._fields.length) {
-                        clean.push(columns[i]); 
-                    }
-                }
+            const result = tableToCsv(this._table, this._fields, options);
+            if (result.error) {
+                return this._handleError(result.message, 'InternalError', 'String');
             }
-
-            const sums = [];
-            const avgCount = [];
-            for (let s = 0; s < this._fields.length; s++) { 
-                sums.push(null); 
-            }
-            if (typeof label === 'string') { 
-                sums[0] = label; 
-            }
-
-            for (let c = 0; c < clean.length; c++) {
-                let sum = 0;
-                avgCount[c] = 0;
-                for (let r = 0; r < this._table.length; r++) {
-                    const value = parseFloat(this._table[r][clean[c]]);
-                    if (!isNaN(value)) {
-                        sum += value;
-                        avgCount[c]++;
-                    }
-                }
-                sums[clean[c]] = sum;
-                
-                if (isAverage && avgCount[c] > 0) {
-                    sums[clean[c]] /= avgCount[c];
-                }
-            }
-
-            if (typeof isNaNValue !== 'undefined') {
-                for (let i = 0; i < sums.length; i++) {
-                    if (isNaN(sums[i])) { 
-                        sums[i] = isNaNValue; 
-                    }
-                }
-            }
-
-            this.addRow(sums);
-            return this;
+            return result;
         }
-
-        sumRows(options = {}) {
-            const label = options.label || 'Total';
-            let rows = options.rows;
-            const isAverage = options.isAverage;
-            const isNaNValue = options.isNaNValue;
-            
-            const sums = [];
-            const avgCount = [];
-            for (let a = 0; a < this._table.length; a++) { 
-                sums.push(null); 
-            }
-            
-            if (typeof rows === 'undefined') {
-                rows = [];
-                for (let i = 0; i < this._table.length; i++) { 
-                    rows.push(i); 
-                }
-            }
-            
-            for (let r = 0; r < rows.length; r++) {
-                if (rows[r] >= 0 && rows[r] < this._table.length) {
-                    let sum = 0;
-                    avgCount[r] = 0;
-                    for (let c = 0; c < this._fields.length; c++) {
-                        const value = parseFloat(this._table[rows[r]][c]);
-                        if (!isNaN(value)) {
-                            sum += value;
-                            avgCount[r]++;
-                        }
-                    }
-                    sums[rows[r]] = sum;
-                    if (isAverage && avgCount[r] > 0) {
-                        sums[rows[r]] /= avgCount[r];
-                    }
-                }
-            }
-
-            if (typeof isNaNValue !== 'undefined') {
-                for (let i = 0; i < sums.length; i++) {
-                    if (isNaN(sums[i])) { 
-                        sums[i] = isNaNValue; 
-                    }
-                }
-            }
-
-            this.addColumn(label, sums);
-            return this;
-        }
-
-        replace(query, newValue, fields) {
-            if (typeof query === 'undefined') { 
-                return this; 
-            }
-            if (typeof newValue === 'undefined')  { 
-                return this; 
-            }
-            if (typeof fields === 'undefined') { 
-                fields = this._fields; 
-            }
-
-            if (!Array.isArray(fields)) { 
-                fields = [fields]; 
-            }
-
-            if (!(query instanceof RegExp)) {
-                query = new RegExp(query.toString(), 'ig');   
-            }
-
-            for (let f = 0; f < fields.length; f++) {
-                const col = this._findFieldIndex(fields[f]);
-                if (col !== false) {
-                    for (let row = 0; row < this._table.length; row++) {
-                        let cell = this._table[row][col];
-                        if (cell === null) { 
-                            cell = ''; 
-                        }
-                        this._table[row][col] = cell.toString().replace(query, newValue);
-                    }
-                }
-            }
-
-            return this;
-        }
-
-        removeDuplicates(fields) {
-            if (this._table.length === 0) { 
-                return this; 
-            }
-            if (typeof fields === 'undefined') {
-                fields = this._fields;
-            }
-            if (!Array.isArray(fields)) { 
-                fields = [fields]; 
-            }
-            
-            const newTable = [];
-            const cols = [];
-            
-            for (let f = 0; f < fields.length; f++) {
-                const testCol = this._findFieldIndex(fields[f]);
-                if (testCol !== false) {
-                    cols.push(testCol);
-                }
-            }
-
-            newTable.push(this._table[0]);
-
-            const testForMatch = (rowData) => {
-                for (let row = 0; row < newTable.length; row++) {
-                    if (newTable[row][cols[0]] == rowData[cols[0]]) {
-                        for (let col = 1; col < cols.length; col++) {
-                            if (newTable[row][cols[col]] != rowData[cols[col]]) {
-                                return false;
-                            }
-                        }
-                        return true; 
-                    } 
-                }
-                return false;
-            };
-
-            for (let row = 1; row < this._table.length; row++) {
-                if (!testForMatch(this._table[row])) {
-                    newTable.push(this._table[row]);
-                }    
-            }
-
-            this._table = newTable;
-            return this;
-        }
-
-        // SQL-like operations
-        query(sqlString) {
-            try {
-                const verb = this._getSqlVerb(sqlString).toUpperCase();
-
-                switch (verb) {
-                    case 'SELECT':
-                        const tempDM = this.clone();
-                        tempDM._executeSelect(sqlString);
-                        return tempDM;
-
-                    case 'UPDATE':
-                    case 'DELETE':
-                    case 'INSERT':
-                        this._executeMutation(sqlString, verb);
-                        return this;
-
-                    default:
-                        this._handleError(`Unsupported SQL verb: ${verb}`);
-                        return this;
-                }
-            } catch (e) {
-                this._handleError('Failed to execute query');
-                return this;
-            }
-        }
-
-        update(setClause, whereClause) {
-            const updateQuery = `UPDATE SET ${setClause}` + 
-                (whereClause ? ` WHERE ${whereClause}` : '');
-            return this.query(updateQuery);
-        }
-
-        delete(whereClause) {
-            if (!whereClause) {
-                this._handleError('DELETE requires a WHERE clause to prevent accidental full-table deletion');
-                return this;
-            }
-            const deleteQuery = `DELETE WHERE ${whereClause}`;
-            return this.query(deleteQuery);
-        }
-
-        _getSqlVerb(sqlString) {
-            const trimmed = sqlString.trim();
-            const firstWord = trimmed.split(/\s+/)[0];
-            return firstWord || '';
-        }
-
-        _executeSelect(sqlString) {
-            // Basic SELECT implementation - this could be expanded
-            // For now, we'll handle simple SELECT * and field selections
-            const selectMatch = sqlString.match(/SELECT\s+(.+?)(?:\s+WHERE\s+(.+?))?(?:\s+ORDER\s+BY\s+(.+?))?$/i);
-            
-            if (selectMatch) {
-                const [, selectClause, whereClause, orderClause] = selectMatch;
-                
-                // Handle WHERE clause
-                if (whereClause) {
-                    this.limit({
-                        query: whereClause,
-                        advanced: true,
-                        queryFunctions: {}
-                    });
-                }
-                
-                // Handle ORDER BY clause
-                if (orderClause) {
-                    const orderParts = this._parseOrderByClause(orderClause);
-                    this.sort(orderParts.fields, orderParts.desc);
-                }
-                
-                // Handle SELECT clause
-                if (selectClause.trim() !== '*') {
-                    const fields = selectClause.split(',').map(f => f.trim());
-                    const reorderedData = this._reorderData(this._table, this._fields, fields);
-                    this._table = reorderedData.table;
-                    this._fields = reorderedData.fields;
-                }
-            }
-        }
-
-        _executeMutation(sqlString, verb) {
-            // Basic mutation implementation
-            if (verb === 'UPDATE') {
-                const updateMatch = sqlString.match(/UPDATE\s+SET\s+(.+?)(?:\s+WHERE\s+(.+?))?$/i);
-                if (updateMatch) {
-                    const [, setClause, whereClause] = updateMatch;
-                    this._executeUpdate(setClause, whereClause);
-                }
-            } else if (verb === 'DELETE') {
-                const deleteMatch = sqlString.match(/DELETE\s+WHERE\s+(.+?)$/i);
-                if (deleteMatch) {
-                    const [, whereClause] = deleteMatch;
-                    this._executeDelete(whereClause);
-                }
-            }
-        }
-
-        _executeUpdate(setClause, whereClause) {
-            let rowsToUpdate = Array.from({ length: this._table.length }, (_, index) => index);
-            
-            if (whereClause) {
-                const searchResult = advancedSearch(whereClause, {}, this._table, this._fields);
-                rowsToUpdate = searchResult.indices;
-            }
-
-            const updateList = this._parseSetClause(setClause);
-            
-            rowsToUpdate.forEach(row => {
-                Object.keys(updateList).forEach(field => {
-                    this.modifyCell(row, field, updateList[field]);
-                });
-            });
-        }
-
-        _executeDelete(whereClause) {
-            if (!whereClause) return;
-            
-            const searchResult = advancedSearch(whereClause, {}, this._table, this._fields);
-            const rowsToDelete = searchResult.indices.sort((a, b) => b - a);
-            
-            rowsToDelete.forEach(row => {
-                this.removeRow(row);
-            });
-        }
-
-        _parseSetClause(setClause) {
-            const updateList = {};
-            const fields = setClause.split(',');
-            
-            for (let i = 0; i < fields.length; i++) {
-                const parts = fields[i].trim().split('=');
-                if (parts.length === 2) {
-                    const key = parts[0].trim();
-                    let value = parts[1].trim();
-                    value = value.replace(/^['"](.*)['"]$/, '$1');
-                    updateList[key] = value;
-                }
-            }
-            
-            return updateList;
-        }
-
-        _parseOrderByClause(orderByClause) {
-            const fieldClauses = orderByClause.split(/\s*,\s*/);
-            const fields = [];
-            const orders = [];
-
-            for (let i = 0; i < fieldClauses.length; i++) {
-                const fieldClause = fieldClauses[i].trim();
-                let order = false;
-                let fieldName = fieldClause;
-
-                if (fieldClause.toUpperCase().endsWith(' DESC')) {
-                    order = true;
-                    fieldName = fieldClause.substring(0, fieldClause.length - 5).trim();
-                } else if (fieldClause.toUpperCase().endsWith(' ASC')) {
-                    fieldName = fieldClause.substring(0, fieldClause.length - 4).trim();
-                }
-
-                fields.push(fieldName);
-                orders.push(order);
-            }
-
-            return { fields: fields, desc: orders };
-        }
-
-        // Non-Mutating Methods (return new values)
-        getCell(rowIndex, field) {
-            try {
-                const index = this._findFieldIndex(field);
-                if (index !== false && rowIndex >= 0 && rowIndex < this._table.length) {
-                    return this._table[rowIndex][index];
-                }
-            } catch (e) {
-                return undefined;
-            }
-            return undefined;
-        }
-
-        getRow(rowIndex) {
-            if (rowIndex >= 0 && rowIndex < this._table.length) {
-                const rowData = {};
-                for (let field = 0; field < this._fields.length; field++) {
-                    rowData[this._fields[field]] = this._table[rowIndex][field];
-                }
-                return rowData;
-            }
-            return null;
-        }
-
-        getColumn(field) {
-            const index = this._findFieldIndex(field);
-            if (index !== false) {
-                const col = [];
-                for (let row = 0; row < this._table.length; row++) {
-                    col.push(this._table[row][index]);
-                }
-                return col;
-            }
-            return null;
-        }
-
+        
+        // --- Data Extraction Methods (Non-Mutating) ---
+        
+        /**
+         * Returns the number of rows in the DataMaster
+         * @returns {number} Number of rows
+         */
         length() {
+            if (!Array.isArray(this._table)) {
+                return this._handleError('Invalid table state', 'StateError', 'Primitive');
+            }
             return this._table.length;
         }
-
+        
+        /**
+         * Returns a copy of the field names
+         * @returns {Array<string>} Array of field names
+         */
         fields() {
-            return copy(this._fields);
+            if (!Array.isArray(this._fields)) {
+                return this._handleError('Invalid fields state', 'StateError', 'Array');
+            }
+            const result = deepCopy(this._fields);
+            if (result.error) {
+                return this._handleError(result.message, 'InternalError', 'Array');
+            }
+            return result;
         }
-
-        search(filter) {
-            if (typeof filter === 'object' && filter.advanced) {
-                const result = advancedSearch(
-                    filter.query, 
-                    filter.queryFunctions || {}, 
-                    this._table, 
-                    this._fields
-                );
-                return new DataMaster(result.table, copy(this._fields), this._options);
+        
+        /**
+         * Returns a single column from the DataMaster
+         * @param {string|number} column - The column name or index to return
+         * @param {boolean} [distinct=false] - Whether to return only unique values
+         * @returns {Array} Array of column values or error indicator
+         */
+        getColumn(column, distinct = false) {
+            if (!Array.isArray(this._table) || !Array.isArray(this._fields)) {
+                return this._handleError('Invalid table or fields state', 'StateError', 'Array');
             }
             
-            // Simple search implementation
-            if (typeof filter === 'object') {
-                const query = filter.query;
-                let searchFields = filter.searchFields || this._fields;
+            if (this._table.length === 0) {
+                return [];
+            }
+            
+            let columnIndex;
+            
+            // Handle column parameter
+            if (typeof column === 'number') {
+                if (column < 0 || column >= this._fields.length) {
+                    return this._handleError('Column index out of bounds', 'UserError', 'Array');
+                }
+                columnIndex = column;
+            } else if (typeof column === 'string') {
+                columnIndex = this._fields.indexOf(column);
+                if (columnIndex === -1) {
+                    return this._handleError(`Column '${column}' not found`, 'UserError', 'Array');
+                }
+            } else {
+                return this._handleError('Column must be a string or number', 'UserError', 'Array');
+            }
+            
+            // Use the utility function to get the column
+            const result = getTableColumn(this._table, columnIndex, distinct);
+            
+            // Return a deep copy to prevent external modification
+            const resultCopy = deepCopy(result);
+            if (resultCopy.error) {
+                return this._handleError(resultCopy.message, 'InternalError', 'Array');
+            }
+            
+            return resultCopy;
+        }
+        
+        /**
+         * Returns a single row from the DataMaster
+         * @param {number} rowIndex - The row index to return
+         * @param {('array'|'object'|'recordset'|'recordtable')} [style='array'] - The return format
+         * @param {string|number} [idField] - If provided, search for row by ID instead of index
+         * @returns {Array|Object|Array<Object>|Object} Row data in specified format or error indicator
+         */
+        getRow(rowIndex, style = 'array', idField = null) {
+            // Determine return type hint based on style
+            let returnTypeHint = 'Array'; // Default for 'array' style
+            switch (style.toLowerCase()) {
+                case 'recordset':
+                    returnTypeHint = 'Array';
+                    break;
+                case 'object':
+                case 'recordtable':
+                    returnTypeHint = 'Primitive'; // Objects can't be represented as error data easily
+                    break;
+                default:
+                    returnTypeHint = 'Array';
+            }
+            
+            if (!Array.isArray(this._table) || !Array.isArray(this._fields)) {
+                return this._handleError('Invalid table or fields state', 'StateError', returnTypeHint);
+            }
+            
+            if (this._table.length === 0) {
+                return this._handleError('Table is empty', 'UserError', returnTypeHint);
+            }
+            
+            let actualRowIndex = rowIndex;
+            
+            // Handle ID-based row lookup
+            if (idField !== null && idField !== undefined) {
+                const idColumnIndex = typeof idField === 'number' ? idField : this._fields.indexOf(idField);
                 
-                if (!Array.isArray(searchFields)) {
-                    searchFields = [searchFields];
+                if (idColumnIndex === -1) {
+                    return this._handleError(`ID field '${idField}' not found`, 'UserError', returnTypeHint);
                 }
                 
-                const found = [];
-                
-                for (let r = 0; r < this._table.length; r++) {
-                    for (let f = 0; f < searchFields.length; f++) {
-                        const fieldIndex = this._findFieldIndex(searchFields[f]);
-                        if (fieldIndex !== false) {
-                            const cellValue = this._table[r][fieldIndex];
-                            if (cellValue != null && 
-                                cellValue.toString().toLowerCase()
-                                    .indexOf(query.toString().toLowerCase()) > -1) {
-                                found.push(this._table[r]);
-                                break;
-                            }
-                        }
+                // Search for the row with matching ID
+                let rowFound = false;
+                for (let i = 0; i < this._table.length; i++) {
+                    if (this._table[i] && this._table[i][idColumnIndex] == rowIndex) { // Soft comparison
+                        actualRowIndex = i;
+                        rowFound = true;
+                        break;
                     }
                 }
                 
-                return new DataMaster(found, copy(this._fields), this._options);
+                if (!rowFound) {
+                    return this._handleError(`Row with ID '${rowIndex}' not found`, 'UserError', returnTypeHint);
+                }
+            } else {
+                // Validate row index
+                if (typeof rowIndex !== 'number' || rowIndex < 0 || rowIndex >= this._table.length) {
+                    return this._handleError('Row index out of bounds', 'UserError', returnTypeHint);
+                }
             }
             
-            return this.clone();
-        }
-
-        clone() {
-            return new DataMaster(copy(this._table), copy(this._fields), this._options);
-        }
-
-        select(queryString = "*") {
-            return this.query(`SELECT ${queryString}`);
-        }
-
-        // Pure Serialization Methods
-        toRecordset() {
-            return recordtableToRecordset({
-                table: this._table,
-                fields: this._fields
-            });
-        }
-
-        toTable(options = {}) {
-            if (options.includeHeaders) {
-                return [this._fields, ...this._table];
+            // Get the row using the utility function
+            const rowData = getTableRow(this._table, actualRowIndex);
+            if (rowData === null) {
+                return this._handleError('Failed to retrieve row data', 'InternalError', returnTypeHint);
             }
-            return copy(this._table);
+            
+            // Return based on requested style
+            switch (style.toLowerCase()) {
+                case 'array':
+                    return rowData;
+                    
+                case 'object':
+                    const obj = {};
+                    for (let i = 0; i < this._fields.length && i < rowData.length; i++) {
+                        obj[this._fields[i]] = rowData[i];
+                    }
+                    return obj;
+                    
+                case 'recordset':
+                    const recordset = [];
+                    const record = {};
+                    for (let i = 0; i < this._fields.length && i < rowData.length; i++) {
+                        record[this._fields[i]] = rowData[i];
+                    }
+                    recordset.push(record);
+                    return recordset;
+                    
+                case 'recordtable':
+                    return {
+                        fields: [...this._fields],
+                        table: [rowData]
+                    };
+                    
+                default:
+                    return this._handleError(`Unknown return style '${style}'`, 'UserError', returnTypeHint);
+            }
         }
-
-        toCsv(options = {}) {
-            return createCSV({
-                table: this._table,
-                fields: this._fields
-            }, options);
+        
+        /**
+         * Gets the value of a single cell
+         * @param {number} row - The row index
+         * @param {string|number} column - The column name or index
+         * @returns {*} The cell value or error indicator
+         */
+        getCell(row, column) {
+            // Validate row parameter
+            if (typeof row !== 'number' || row < 0 || row >= this._table.length) {
+                return this._handleError('Row index out of bounds', 'UserError', 'Primitive');
+            }
+            
+            let columnIndex;
+            
+            // Handle column parameter
+            if (typeof column === 'number') {
+                if (column < 0 || column >= this._fields.length) {
+                    return this._handleError('Column index out of bounds', 'UserError', 'Primitive');
+                }
+                columnIndex = column;
+            } else if (typeof column === 'string') {
+                columnIndex = this._fields.indexOf(column);
+                if (columnIndex === -1) {
+                    return this._handleError(`Column '${column}' not found`, 'UserError', 'Primitive');
+                }
+            } else {
+                return this._handleError('Column must be a string or number', 'UserError', 'Primitive');
+            }
+            
+            // Validate that the row exists and has the expected structure
+            if (!Array.isArray(this._table[row])) {
+                return this._handleError('Invalid row structure', 'InternalError', 'Primitive');
+            }
+            
+            // Return the cell value (could be undefined, null, or any value)
+            return this._table[row][columnIndex];
         }
-
-        // Legacy compatibility methods
+        
+        /**
+         * Creates a deep copy of this DataMaster instance
+         * @returns {DataMaster} New DataMaster instance
+         */
+        clone() {
+            const tableCopy = deepCopy(this._table);
+            if (tableCopy.error) {
+                return this._handleError(tableCopy.message, 'InternalError', 'DataMaster');
+            }
+            
+            const fieldsCopy = deepCopy(this._fields);
+            if (fieldsCopy.error) {
+                return this._handleError(fieldsCopy.message, 'InternalError', 'DataMaster');
+            }
+            
+            return new DataMaster(tableCopy, fieldsCopy, this._options);
+        }
+        
+        /**
+         * Exports a string representation of the DataMaster
+         * @param {boolean} [consoleMode=false] - true is meant for console output false is meant for html
+         * @returns {string} String representation of the DataMaster
+         */
         debug(consoleMode = false) {
+            if (!Array.isArray(this._table) || !Array.isArray(this._fields)) {
+                return this._handleError('Invalid table or fields state', 'StateError', 'String');
+            }
+            
+            // Set formatting based on console mode
             const newline = consoleMode ? '\r\n' : '<br>';
             const space = consoleMode ? ' ' : '&nbsp;';
             
-            const lPad = (value, length) => {
+            /**
+             * Left-pads a value to a specified length
+             * @param {*} value - Value to pad
+             * @param {number} length - Target length
+             * @returns {string} Padded string
+             */
+            function lPad(value, length) {
                 if (typeof value === 'number') { 
                     value = value.toString(); 
                 }
@@ -1353,16 +1806,21 @@
                     }
                 }
                 return value;
-            };
-
-            const pads = [];
-            for (let i = 0; i < this._fields.length; i++) {
-                pads[i] = this._fields[i].length;      
             }
             
+            // Calculate column widths
+            const pads = [];
+            let val = '';
+            
+            // Initialize with field name lengths
+            for (let i = 0; i < this._fields.length; i++) {
+                pads[i] = this._fields[i].length;
+            }
+            
+            // Find maximum width for each column
             for (let r = 0; r < this._table.length; r++) {
                 for (let c = 0; c < this._fields.length; c++) {
-                    let val = this._table[r][c];
+                    val = this._table[r][c];
                     if (val === true) { val = 'true'; }
                     else if (val === false) { val = 'false'; }
                     else if (val === null) { val = 'null'; }
@@ -1370,9 +1828,10 @@
                     if (val.toString().length > pads[c]) { 
                         pads[c] = val.toString().length; 
                     }
-                } 
+                }
             }
-
+            
+            // Build the output string
             let out = newline;
             out += '--|';
             for (let f = 0; f < this._fields.length; f++) {
@@ -1383,7 +1842,7 @@
             for (let row = 0; row < this._table.length; row++) {
                 out += row + (row < 10 ? ' |' : '|');
                 for (let col = 0; col < this._table[row].length; col++) {
-                    let val = this._table[row][col];
+                    val = this._table[row][col];
                     if (val === true) { val = 'true'; }
                     else if (val === false) { val = 'false'; }
                     else if (val === null) { val = 'null'; }
@@ -1395,294 +1854,1301 @@
             
             return out;
         }
-
+        
+        /**
+         * Exports a string representation of the DataMaster (alias for debug)
+         * @param {boolean} [consoleMode=false] - true is meant for console output false is meant for html
+         * @returns {string} String representation of the DataMaster
+         */
         print(consoleMode = false) {
             return this.debug(consoleMode);
         }
-    }
-
-    /******* TABLE GENERATOR CLASS (Embedded) **********************************************************/
-
-    class TableGenerator {
-        constructor() {
-            this.libraryData = {};
-            if (TableGenerator.defaultLibrary && typeof TableGenerator.defaultLibrary === "object") {
-                this.libraryData = TableGenerator.defaultLibrary;
-            }
-        }
-
-        loremIpsum(wordCount) {
-            const loremWords = [
-                "Lorem", "ipsum", "dolor", "sit", "amet", "consectetur",
-                "adipiscing", "elit", "sed", "do", "eiusmod", "tempor",
-                "incididunt", "ut", "labore", "et", "dolore", "magna",
-                "aliqua", "Ut", "enim", "ad", "minim", "veniam", "quis",
-                "nostrud", "exercitation", "ullamco", "laboris", "nisi",
-                "ut", "aliquip", "ex", "ea", "commodo", "consequat",
-                "Duis", "aute", "irure", "dolor", "in", "reprehenderit",
-                "in", "voluptate", "velit", "esse", "cillum", "dolore",
-                "eu", "fugiat", "nulla", "pariatur", "Excepteur",
-                "sint", "occaecat", "cupidatat", "non", "proident",
-                "sunt", "in", "culpa", "qui", "officia", "deserunt",
-                "mollit", "anim", "id", "est", "laborum"
-            ];
-            
-            if (wordCount < 1) {
-                return "";
+        
+        /**
+         * Pivots the table (transposes rows and columns)
+         * NOTE: This function assumes that your table data has row headers, because that's what the new
+         * columns will be called. Add row headers using addColumn if necessary before running this.
+         * @returns {DataMaster} this for chaining
+         */
+        pivot() {
+            if (!Array.isArray(this._table) || !Array.isArray(this._fields)) {
+                return this._handleError('Invalid table or fields state', 'StateError', 'DataMaster');
             }
             
-            const result = [];
-            for (let i = 0; i < wordCount; i++) {
-                result.push(loremWords[Math.floor(Math.random() * loremWords.length)]);
-            }
-            return result.join(" ") + ".";
-        }
-
-        getLibraryValue(key, columnName, errors) {
-            if (!this.libraryData[key]) {
-                errors.push("Library key '" + key + "' not found for column '" + columnName + "'.");
-                return "";
+            if (this._table.length === 0) {
+                return this._handleError('Cannot pivot empty table', 'UserError', 'DataMaster');
             }
             
-            if (typeof this.libraryData[key] === "object" && this.libraryData[key].type === "composite") {
-                return this.generateAutoValue(this.libraryData[key], columnName, [], [], errors);
+            if (this._fields.length < 2) {
+                return this._handleError('Cannot pivot table with less than 2 columns', 'UserError', 'DataMaster');
             }
             
-            if (!Array.isArray(this.libraryData[key]) || this.libraryData[key].length === 0) {
-                errors.push("Library key '" + key + "' is empty or not an array for column '" + columnName + "'.");
-                return "";
-            }
-            
-            return this.libraryData[key][Math.floor(Math.random() * this.libraryData[key].length)];
-        }
-
-        generateAutoValue(autoGenSettings, columnName, currentRow, fullTable, errors) {
-            if (!autoGenSettings.type) {
-                errors.push("Missing 'type' in autoGenerate for column '" + columnName + "'.");
-                return "";
-            }
-            
-            if (autoGenSettings.type === "library") {
-                return this.getLibraryValue(autoGenSettings.value, columnName, errors);
-            }
-            
-            if (autoGenSettings.type === "loremIpsum") {
-                if (typeof autoGenSettings.min !== "number" || typeof autoGenSettings.max !== "number") {
-                    errors.push("'loremIpsum' type requires 'min' and 'max' values in column '" + columnName + "'.");
-                    return "";
-                }
-                if (autoGenSettings.min > autoGenSettings.max) {
-                    errors.push("'min' cannot be greater than 'max' in autoGenerate for column '" + columnName + "'.");
-                    return "";
-                }
-                const wordCount = Math.floor(Math.random() * (autoGenSettings.max - autoGenSettings.min + 1)) + autoGenSettings.min;
-                return this.loremIpsum(wordCount);
-            }
-            
-            if (autoGenSettings.type === "number") {
-                if (typeof autoGenSettings.min !== "number" || typeof autoGenSettings.max !== "number") {
-                    errors.push("Invalid or missing 'min'/'max' in autoGenerate for column '" + columnName + "'.");
-                    return "";
-                }
-                if (autoGenSettings.min > autoGenSettings.max) {
-                    errors.push("'min' cannot be greater than 'max' in autoGenerate for column '" + columnName + "'.");
-                    return "";
-                }
-                return Math.floor(Math.random() * (autoGenSettings.max - autoGenSettings.min + 1)) + autoGenSettings.min;
-            }
-            
-            if (autoGenSettings.type === "random") {
-                if (!autoGenSettings.length || !autoGenSettings.characters) {
-                    errors.push("'random' type requires 'length' and 'characters' in column '" + columnName + "'.");
-                    return "";
-                }
-                let result = "";
-                for (let i = 0; i < autoGenSettings.length; i++) {
-                    result += autoGenSettings.characters[Math.floor(Math.random() * autoGenSettings.characters.length)];
-                }
-                return result;
-            }
-            
-            if (autoGenSettings.type === "composite") {
-                if (!Array.isArray(autoGenSettings.patterns) || autoGenSettings.patterns.length === 0) {
-                    errors.push("'patterns' must be a non-empty array in autoGenerate for column '" + columnName + "'.");
-                    return "";
-                }
-                const pattern = autoGenSettings.patterns[Math.floor(Math.random() * autoGenSettings.patterns.length)];
-                let result = "";
-                for (let k = 0; k < pattern.length; k++) {
-                    const part = pattern[k];
-                    if (!part.type) {
-                        errors.push("Missing 'type' in pattern part for column '" + columnName + "'.");
-                        return "";
+            try {
+                const pivot = {
+                    table: [],
+                    fields: []
+                };
+                
+                // Create the full pivoted table structure
+                // We skip the first column (length-1) because it becomes row headers
+                for (let f = 0; f < this._fields.length - 1; f++) {
+                    const data = [];
+                    // Create a blank row with length+1 because we need a spot for the fields to become row headers
+                    for (let r = 0; r < this._table.length + 1; r++) {
+                        data.push(null); // Use null instead of 'XXX' for better data integrity
                     }
-                    if (part.type === "library") {
-                        result += this.getLibraryValue(part.value, columnName, errors);
-                    } else if (part.type === "static") {
-                        result += part.value || "";
-                    } else if (part.type === "field") {
-                        const fieldIndex = fullTable[0] ? fullTable[0].indexOf(part.value) : -1;
-                        if (fieldIndex === -1) {
-                            errors.push("Referenced field '" + part.value + "' not found for column '" + columnName + "'.");
-                            return "";
+                    pivot.table.push(data);
+                }
+                
+                // The new fields will be the first column values
+                pivot.fields = getTableColumn(this._table, 0);
+                pivot.fields.unshift(this._fields[0]); // Keep the first column header
+                
+                // Place the fields into the first column of the new table
+                for (let r = 0; r < this._fields.length - 1; r++) {
+                    pivot.table[r][0] = this._fields[r + 1]; // Skip first field
+                }
+                
+                // Fill in the data
+                for (let c = 0; c < this._fields.length - 1; c++) { // Skip the first column as that's now field names
+                    for (let r = 0; r < this._table.length; r++) {
+                        // Add 1 to the _table column so we skip the field names
+                        // Add 1 to the pivot.table row because we've already put in the row headers
+                        // which aren't in the original table data
+                        if (this._table[r] && this._table[r][c + 1] !== undefined) {
+                            pivot.table[c][r + 1] = this._table[r][c + 1];
                         }
-                        result += currentRow[fieldIndex] || "";
-                    } else if (part.type === "list") {
-                        result += part.value[Math.floor(Math.random() * part.value.length)];
-                    } else if (part.type === "random") {
-                        if (!part.length || !part.characters) {
-                            errors.push("'random' part must have 'length' and 'characters' properties in column '" + columnName + "'.");
-                            return "";
+                    }
+                }
+                
+                // Update the internal state
+                this._table = pivot.table;
+                this._fields = pivot.fields;
+                
+                return this; // For chaining
+                
+            } catch (error) {
+                return this._handleError('Pivot operation failed: ' + error.message, 'InternalError', 'DataMaster');
+            }
+        }
+        
+        // --- Placeholder comments for other methods ---
+        
+        // --- Mutating Methods (return this) ---
+        
+        /**
+         * Adds a row to the DataMaster
+         * @param {Array|Object} data - The row data as array or object
+         * @param {number} [location] - The index at which to place the new row, shifting existing rows
+         * @returns {DataMaster} this for chaining
+         */
+        addRow(data, location) {
+            if (!Array.isArray(this._table) || !Array.isArray(this._fields)) {
+                return this._handleError('Invalid table or fields state', 'StateError', 'DataMaster');
+            }
+            
+            if (typeof data === 'undefined') {
+                data = [];
+            }
+            
+            let cleanRow;
+            
+            try {
+                if (!Array.isArray(data)) {
+                    // Assume an object was passed - convert to array format
+                    cleanRow = new Array(this._fields.length);
+                    
+                    // Initialize with nulls
+                    for (let c = 0; c < cleanRow.length; c++) {
+                        cleanRow[c] = null;
+                    }
+                    
+                    // Fill the array from the object using field names
+                    if (typeof data === 'object' && data !== null) {
+                        Object.keys(data).forEach(key => {
+                            const fieldIndex = this._fields.indexOf(key);
+                            if (fieldIndex !== -1) {
+                                cleanRow[fieldIndex] = data[key];
+                            }
+                        });
+                    }
+                } else {
+                    // Array was passed - validate and adjust length
+                    cleanRow = [...data]; // Create a copy
+                    
+                    // Trim if too long
+                    if (cleanRow.length > this._fields.length) {
+                        cleanRow = cleanRow.slice(0, this._fields.length);
+                    } else if (cleanRow.length < this._fields.length) {
+                        // Pad with nulls if too short
+                        for (let i = cleanRow.length; i < this._fields.length; i++) {
+                            cleanRow.push(null);
                         }
-                        for (let j = 0; j < part.length; j++) {
-                            result += part.characters[Math.floor(Math.random() * part.characters.length)];
+                    }
+                }
+                
+                // Handle location parameter
+                if (typeof location === 'number') {
+                    // Ensure location is in bounds
+                    if (location < 0) location = 0;
+                    if (location > this._table.length) location = this._table.length;
+                    
+                    // Insert at specified location
+                    this._table.splice(location, 0, cleanRow);
+                } else {
+                    // Add to end if location not specified
+                    this._table.push(cleanRow);
+                }
+                
+            } catch (error) {
+                return this._handleError('Failed to add row: ' + error.message, 'InternalError', 'DataMaster');
+            }
+            
+            return this; // For chaining
+        }
+        
+        /**
+         * Removes a row from the DataMaster
+         * @param {number} index - Index of the row to remove
+         * @returns {DataMaster} this for chaining
+         */
+        removeRow(index) {
+            if (!Array.isArray(this._table)) {
+                return this._handleError('Invalid table state', 'StateError', 'DataMaster');
+            }
+            
+            if (typeof index !== 'number') {
+                return this._handleError('Row index must be a number', 'UserError', 'DataMaster');
+            }
+            
+            if (index < 0 || index >= this._table.length) {
+                return this._handleError('Row index out of bounds', 'UserError', 'DataMaster');
+            }
+            
+            try {
+                this._table.splice(index, 1);
+            } catch (error) {
+                return this._handleError('Failed to remove row: ' + error.message, 'InternalError', 'DataMaster');
+            }
+            
+            return this; // For chaining
+        }
+        
+        /**
+         * Adds a new column to the DataMaster
+         * @param {string} name - The column/field name
+         * @param {Array} [data] - The data to add. If undefined, nulls will be added
+         * @param {string|number} [location] - Index or fieldname to place the column
+         * @returns {DataMaster} this for chaining
+         */
+        addColumn(name, data, location) {
+            if (!Array.isArray(this._table) || !Array.isArray(this._fields)) {
+                return this._handleError('Invalid table or fields state', 'StateError', 'DataMaster');
+            }
+            
+            if (typeof name !== 'string') {
+                return this._handleError('Column name must be a string', 'UserError', 'DataMaster');
+            }
+            
+            if (typeof data === 'undefined') {
+                data = [];
+            }
+            
+            if (!Array.isArray(data)) {
+                return this._handleError('Column data must be an array', 'UserError', 'DataMaster');
+            }
+            
+            try {
+                // Create a properly sized column with the provided data
+                const cleanColumn = data.slice(0, this._table.length);
+                
+                // Pad with nulls if data is shorter than table
+                if (cleanColumn.length < this._table.length) {
+                    for (let i = cleanColumn.length; i < this._table.length; i++) {
+                        cleanColumn.push(null);
+                    }
+                }
+                
+                // Handle location parameter
+                if (typeof location !== 'undefined') {
+                    let insertIndex;
+                    
+                    if (typeof location === 'number') {
+                        insertIndex = location;
+                    } else if (typeof location === 'string') {
+                        insertIndex = this._fields.indexOf(location);
+                        if (insertIndex === -1) {
+                            return this._handleError(`Location field '${location}' not found`, 'UserError', 'DataMaster');
                         }
-                    } else if (part.type === "number") {
-                        if (typeof part.min !== "number" || typeof part.max !== "number") {
-                            errors.push("'number' part must have 'min' and 'max' properties in column '" + columnName + "'.");
-                            return "";
-                        }
-                        if (part.min > part.max) {
-                            errors.push("'min' cannot be greater than 'max' in number part for column '" + columnName + "'.");
-                            return "";
-                        }
-                        result += Math.floor(Math.random() * (part.max - part.min + 1)) + part.min;
                     } else {
-                        errors.push("Unsupported part type '" + part.type + "' in column '" + columnName + "'.");
-                        return "";
+                        return this._handleError('Location must be a string or number', 'UserError', 'DataMaster');
+                    }
+                    
+                    // Ensure insertIndex is in bounds
+                    if (insertIndex < 0) insertIndex = 0;
+                    if (insertIndex > this._fields.length) insertIndex = this._fields.length;
+                    
+                    // Insert field name
+                    this._fields.splice(insertIndex, 0, name);
+                    
+                    // Insert data into each row
+                    for (let r = 0; r < this._table.length; r++) {
+                        this._table[r].splice(insertIndex, 0, cleanColumn[r]);
+                    }
+                } else {
+                    // Add to end if location not specified
+                    this._fields.push(name);
+                    
+                    // Add data to end of each row
+                    for (let r = 0; r < this._table.length; r++) {
+                        this._table[r].push(cleanColumn[r]);
                     }
                 }
-                return result;
+                
+            } catch (error) {
+                return this._handleError('Failed to add column: ' + error.message, 'InternalError', 'DataMaster');
             }
             
-            errors.push("Unsupported autoGenerate type '" + autoGenSettings.type + "' for column '" + columnName + "'.");
-            return "";
+            return this; // For chaining
         }
-
-        buildErrorTable(errors) {
-            const table = [];
-            table.push(["Errors"]);
-            for (let i = 0; i < errors.length; i++) {
-                table.push([errors[i]]);
-            }
-            return table;
-        }
-
-        generate(template, customLibrary) {
-            const errors = [];
-            if (!template || typeof template !== "object") {
-                errors.push("Invalid or missing template.");
-                return this.buildErrorTable(errors);
+        
+        /**
+         * Removes a column from the DataMaster
+         * @param {string|number} column - The column name or index to remove
+         * @returns {DataMaster} this for chaining
+         */
+        removeColumn(column) {
+            if (!Array.isArray(this._table) || !Array.isArray(this._fields)) {
+                return this._handleError('Invalid table or fields state', 'StateError', 'DataMaster');
             }
             
-            if (customLibrary && typeof customLibrary === "object") {
-                this.libraryData = Object.assign(this.libraryData, customLibrary);
-            }
+            let columnIndex;
             
-            const settings = template.settings || {};
-            const numRows = settings.rows || 10;
-            const includeHeaders = settings.includeHeaders || false;
-            const indexSettings = settings.index || null;
-            const tmpl = template.template;
-            
-            if (!tmpl || typeof tmpl !== "object") {
-                errors.push("Invalid template structure in provided template.");
-                return this.buildErrorTable(errors);
-            }
-            
-            let columns = Object.keys(tmpl);
-            let indexName = "";
-            let startIndex = 1;
-            
-            if (indexSettings && indexSettings.name) {
-                indexName = indexSettings.name;
-                startIndex = Number.isInteger(indexSettings.start) ? indexSettings.start : 1;
-                columns = [indexName].concat(columns);
-            }
-            
-            const table = [];
-            if (includeHeaders) {
-                table.push(columns);
-            }
-            
-            const tmplKeys = (indexSettings && indexSettings.name) ? Object.keys(tmpl) : columns;
-            
-            for (let i = 0; i < numRows; i++) {
-                const row = [];
-                if (indexSettings && indexSettings.name) {
-                    row.push(startIndex + i);
+            // Handle column parameter
+            if (typeof column === 'number') {
+                if (column < 0 || column >= this._fields.length) {
+                    return this._handleError('Column index out of bounds', 'UserError', 'DataMaster');
                 }
-                for (let j = 0; j < tmplKeys.length; j++) {
-                    const column = tmplKeys[j];
-                    const field = tmpl[column];
-                    let value = "";
-                    if (field && field.autoGenerate) {
-                        value = this.generateAutoValue(field.autoGenerate, column, row, table, errors);
-                    } else if (field && Array.isArray(field.list) && field.list.length > 0) {
-                        value = field.list[Math.floor(Math.random() * field.list.length)];
+                columnIndex = column;
+            } else if (typeof column === 'string') {
+                columnIndex = this._fields.indexOf(column);
+                if (columnIndex === -1) {
+                    return this._handleError(`Column '${column}' not found`, 'UserError', 'DataMaster');
+                }
+            } else {
+                return this._handleError('Column must be a string or number', 'UserError', 'DataMaster');
+            }
+            
+            try {
+                // Remove field name
+                this._fields.splice(columnIndex, 1);
+                
+                // Remove data from each row
+                for (let r = 0; r < this._table.length; r++) {
+                    this._table[r].splice(columnIndex, 1);
+                }
+                
+            } catch (error) {
+                return this._handleError('Failed to remove column: ' + error.message, 'InternalError', 'DataMaster');
+            }
+            
+            return this; // For chaining
+        }
+        
+        /**
+         * Modifies a cell value
+         * @param {number} row - The row index
+         * @param {string|number} column - The column name or index
+         * @param {*} value - The new value for the cell
+         * @returns {DataMaster} this for chaining
+         */
+        modifyCell(row, column, value) {
+            if (!Array.isArray(this._table) || !Array.isArray(this._fields)) {
+                return this._handleError('Invalid table or fields state', 'StateError', 'DataMaster');
+            }
+            
+            // Validate row parameter
+            if (typeof row !== 'number') {
+                return this._handleError('Row index must be a number', 'UserError', 'DataMaster');
+            }
+            
+            if (row < 0 || row >= this._table.length) {
+                return this._handleError('Row index out of bounds', 'UserError', 'DataMaster');
+            }
+            
+            let columnIndex;
+            
+            // Handle column parameter
+            if (typeof column === 'number') {
+                if (column < 0 || column >= this._fields.length) {
+                    return this._handleError('Column index out of bounds', 'UserError', 'DataMaster');
+                }
+                columnIndex = column;
+            } else if (typeof column === 'string') {
+                columnIndex = this._fields.indexOf(column);
+                if (columnIndex === -1) {
+                    return this._handleError(`Column '${column}' not found`, 'UserError', 'DataMaster');
+                }
+            } else {
+                return this._handleError('Column must be a string or number', 'UserError', 'DataMaster');
+            }
+            
+            // Validate that the row exists and has the expected structure
+            if (!Array.isArray(this._table[row])) {
+                return this._handleError('Invalid row structure', 'InternalError', 'DataMaster');
+            }
+            
+            try {
+                // Modify the cell value
+                this._table[row][columnIndex] = value;
+            } catch (error) {
+                return this._handleError('Failed to modify cell: ' + error.message, 'InternalError', 'DataMaster');
+            }
+            
+            return this; // For chaining
+        }
+        /**
+         * Formats the cells in a column based on a formatting function
+         * This is an in-place replacement of the original data
+         * @param {string|number} column - The column name or index to format
+         * @param {function} formatFn - Function to modify/format the data
+         * @returns {DataMaster} this for chaining
+         */
+        formatColumn(column, formatFn) {
+            if (!Array.isArray(this._table) || !Array.isArray(this._fields)) {
+                return this._handleError('Invalid table or fields state', 'StateError', 'DataMaster');
+            }
+            
+            if (typeof formatFn !== 'function') {
+                return this._handleError('Format function must be a function', 'UserError', 'DataMaster');
+            }
+            
+            let columnIndex;
+            
+            // Handle column parameter
+            if (typeof column === 'number') {
+                if (column < 0 || column >= this._fields.length) {
+                    return this._handleError('Column index out of bounds', 'UserError', 'DataMaster');
+                }
+                columnIndex = column;
+            } else if (typeof column === 'string') {
+                columnIndex = this._fields.indexOf(column);
+                if (columnIndex === -1) {
+                    return this._handleError(`Column '${column}' not found`, 'UserError', 'DataMaster');
+                }
+            } else {
+                return this._handleError('Column must be a string or number', 'UserError', 'DataMaster');
+            }
+            
+            try {
+                // Apply formatting function to each cell in the column
+                for (let row = 0; row < this._table.length; row++) {
+                    if (!Array.isArray(this._table[row])) {
+                        continue; // Skip invalid rows
                     }
-                    row.push(value);
+                    
+                    try {
+                        // Apply the formatting function to the cell value
+                        this._table[row][columnIndex] = formatFn(this._table[row][columnIndex]);
+                    } catch (formatError) {
+                        // Continue processing other cells if one formatting fails
+                        // This maintains the original behavior of silently handling format errors
+                        continue;
+                    }
                 }
-                table.push(row);
+            } catch (error) {
+                return this._handleError('Failed to format column: ' + error.message, 'InternalError', 'DataMaster');
             }
             
-            if (errors.length > 0) {
-                return this.buildErrorTable(errors);
+            return this; // For chaining
+        }
+        
+        /**
+         * Formats the cells in a row based on a formatting function
+         * This is an in-place replacement of the original data
+         * @param {number} row - The row index to format
+         * @param {function} formatFn - Function to modify/format the data
+         * @returns {DataMaster} this for chaining
+         */
+        formatRow(row, formatFn) {
+            if (!Array.isArray(this._table) || !Array.isArray(this._fields)) {
+                return this._handleError('Invalid table or fields state', 'StateError', 'DataMaster');
             }
-            return table;
+            
+            if (typeof formatFn !== 'function') {
+                return this._handleError('Format function must be a function', 'UserError', 'DataMaster');
+            }
+            
+            if (typeof row !== 'number') {
+                return this._handleError('Row index must be a number', 'UserError', 'DataMaster');
+            }
+            
+            if (row < 0 || row >= this._table.length) {
+                return this._handleError('Row index out of bounds', 'UserError', 'DataMaster');
+            }
+            
+            // Validate that the row exists and has the expected structure
+            if (!Array.isArray(this._table[row])) {
+                return this._handleError('Invalid row structure', 'InternalError', 'DataMaster');
+            }
+            
+            try {
+                // Apply formatting function to each cell in the row
+                for (let col = 0; col < this._table[row].length; col++) {
+                    try {
+                        // Apply the formatting function to the cell value
+                        this._table[row][col] = formatFn(this._table[row][col]);
+                    } catch (formatError) {
+                        // Continue processing other cells if one formatting fails
+                        // This maintains the original behavior of silently handling format errors
+                        continue;
+                    }
+                }
+            } catch (error) {
+                return this._handleError('Failed to format row: ' + error.message, 'InternalError', 'DataMaster');
+            }
+            
+            return this; // For chaining
+        }
+        /**
+         * Sorts the DataMaster by one or more fields
+         * @param {string|number|Array<string|number>} fields - Field name(s) or index(es) to sort by
+         * @param {boolean|Array<boolean>} [directions=false] - Sort direction(s): true = descending, false = ascending
+         * @param {Function|Array<Function>} [primers] - Optional transformation function(s) for sorting
+         * @returns {DataMaster} this for chaining
+         */
+        sort(fields, directions, primers) {
+            if (!Array.isArray(this._table) || !Array.isArray(this._fields)) {
+                return this._handleError('Invalid table or fields state', 'StateError', 'DataMaster');
+            }
+            
+            if (this._table.length <= 1) {
+                return this; // Nothing to sort or single row
+            }
+            
+            if (typeof fields === 'undefined') {
+                return this._handleError('Fields parameter is required for sorting', 'UserError', 'DataMaster');
+            }
+            
+            // Normalize inputs to arrays
+            let fieldsArray = Array.isArray(fields) ? fields : [fields];
+            let directionsArray = Array.isArray(directions) ? directions : [directions || false];
+            let primersArray = Array.isArray(primers) ? primers : [primers];
+            
+            if (fieldsArray.length === 0) {
+                return this._handleError('At least one field must be specified for sorting', 'UserError', 'DataMaster');
+            }
+            
+            // Ensure directions array matches fields length
+            while (directionsArray.length < fieldsArray.length) {
+                directionsArray.push(false); // Default to ascending
+            }
+            
+            // Ensure primers array matches fields length (if any primers provided)
+            if (primers) {
+                while (primersArray.length < fieldsArray.length) {
+                    primersArray.push(null); // Fill with null for missing primers
+                }
+            } else {
+                primersArray = new Array(fieldsArray.length).fill(null);
+            }
+            
+            try {
+                // Validate and convert field references to column indexes
+                const validation = validateAndConvertFields(this._fields, fieldsArray);
+                if (!validation.success) {
+                    return this._handleError(validation.error, 'UserError', 'DataMaster');
+                }
+                
+                // Create the comparator function
+                const comparator = multiFieldSort(validation.indexes, directionsArray, primersArray);
+                
+                // Sort the table in place
+                this._table.sort(comparator);
+                
+            } catch (error) {
+                return this._handleError('Failed to sort table: ' + error.message, 'InternalError', 'DataMaster');
+            }
+            
+            return this; // For chaining
+        }
+        
+        /**
+         * Sums column values and adds a summary row
+         * @param {Object} [options] - Configuration options
+         * @param {string} [options.label] - Label for the summary row (placed in first column)
+         * @param {Array<string|number>} [options.columns] - Columns to sum (default: all numeric columns)
+         * @param {boolean} [options.isAverage=false] - Calculate averages instead of sums
+         * @param {*} [options.nanValue] - Value to use for non-numeric results
+         * @returns {DataMaster} this for chaining
+         */
+        sumColumns(options = {}) {
+            if (!Array.isArray(this._table) || !Array.isArray(this._fields)) {
+                return this._handleError('Invalid table or fields state', 'StateError', 'DataMaster');
+            }
+            
+            if (this._table.length === 0) {
+                return this._handleError('Cannot sum columns of empty table', 'UserError', 'DataMaster');
+            }
+            
+            if (this._fields.length === 0) {
+                return this._handleError('Cannot sum columns without field definitions', 'UserError', 'DataMaster');
+            }
+            
+            try {
+                const { label, columns, isAverage = false, nanValue } = options;
+                
+                // Determine which columns to sum
+                let columnsToSum = columns;
+                if (!columnsToSum) {
+                    // Default to all columns except first if label exists
+                    columnsToSum = [];
+                    const startIndex = typeof label === 'string' ? 1 : 0;
+                    for (let i = startIndex; i < this._fields.length; i++) {
+                        columnsToSum.push(i);
+                    }
+                }
+                
+                // Validate and convert column references to indexes
+                const validation = validateAndConvertFields(this._fields, columnsToSum);
+                if (!validation.success) {
+                    return this._handleError(validation.error, 'UserError', 'DataMaster');
+                }
+                
+                const columnIndexes = validation.indexes;
+                
+                // Initialize sums array with nulls
+                const sums = new Array(this._fields.length).fill(null);
+                const avgCounts = new Array(this._fields.length).fill(0);
+                
+                // Set label in first column if provided
+                if (typeof label === 'string') {
+                    sums[0] = label;
+                }
+                
+                // Calculate sums for specified columns
+                for (let c = 0; c < columnIndexes.length; c++) {
+                    const columnIndex = columnIndexes[c];
+                    let sum = 0;
+                    let count = 0;
+                    
+                    for (let r = 0; r < this._table.length; r++) {
+                        if (!Array.isArray(this._table[r])) {
+                            continue; // Skip invalid rows
+                        }
+                        
+                        const cellValue = this._table[r][columnIndex];
+                        const numValue = parseFloat(cellValue);
+                        
+                        if (!isNaN(numValue) && isFinite(numValue)) {
+                            sum += numValue;
+                            count++;
+                        }
+                    }
+                    
+                    // Store result
+                    if (count > 0) {
+                        sums[columnIndex] = isAverage ? sum / count : sum;
+                        avgCounts[columnIndex] = count;
+                    } else {
+                        sums[columnIndex] = isAverage ? 0 : 0;
+                    }
+                }
+                
+                // Handle NaN values if specified
+                if (typeof nanValue !== 'undefined') {
+                    for (let i = 0; i < sums.length; i++) {
+                        if (typeof sums[i] === 'number' && isNaN(sums[i])) {
+                            sums[i] = nanValue;
+                        }
+                    }
+                }
+                
+                // Add the summary row
+                this.addRow(sums);
+                
+            } catch (error) {
+                return this._handleError('Failed to sum columns: ' + error.message, 'InternalError', 'DataMaster');
+            }
+            
+            return this; // For chaining
+        }
+        
+        /**
+         * Sums row values and adds a summary column
+         * @param {Object} [options] - Configuration options
+         * @param {string} [options.label='Total'] - Label for the summary column
+         * @param {Array<number>} [options.rows] - Row indexes to sum (default: all rows)
+         * @param {boolean} [options.isAverage=false] - Calculate averages instead of sums
+         * @param {*} [options.nanValue] - Value to use for non-numeric results
+         * @returns {DataMaster} this for chaining
+         */
+        sumRows(options = {}) {
+            if (!Array.isArray(this._table) || !Array.isArray(this._fields)) {
+                return this._handleError('Invalid table or fields state', 'StateError', 'DataMaster');
+            }
+            
+            if (this._table.length === 0) {
+                return this._handleError('Cannot sum rows of empty table', 'UserError', 'DataMaster');
+            }
+            
+            try {
+                const { label = 'Total', rows, isAverage = false, nanValue } = options;
+                
+                // Determine which rows to sum
+                let rowsToSum = rows;
+                if (!rowsToSum) {
+                    // Default to all rows
+                    rowsToSum = [];
+                    for (let i = 0; i < this._table.length; i++) {
+                        rowsToSum.push(i);
+                    }
+                }
+                
+                // Validate row indexes
+                for (let r = 0; r < rowsToSum.length; r++) {
+                    const rowIndex = rowsToSum[r];
+                    if (typeof rowIndex !== 'number' || rowIndex < 0 || rowIndex >= this._table.length) {
+                        return this._handleError(`Row index ${rowIndex} is out of bounds`, 'UserError', 'DataMaster');
+                    }
+                }
+                
+                // Initialize sums array
+                const sums = new Array(this._table.length).fill(null);
+                const avgCounts = new Array(this._table.length).fill(0);
+                
+                // Calculate row sums
+                for (let r = 0; r < rowsToSum.length; r++) {
+                    const rowIndex = rowsToSum[r];
+                    
+                    if (!Array.isArray(this._table[rowIndex])) {
+                        sums[rowIndex] = null;
+                        continue;
+                    }
+                    
+                    let sum = 0;
+                    let count = 0;
+                    
+                    for (let c = 0; c < this._table[rowIndex].length; c++) {
+                        const cellValue = this._table[rowIndex][c];
+                        const numValue = parseFloat(cellValue);
+                        
+                        if (!isNaN(numValue) && isFinite(numValue)) {
+                            sum += numValue;
+                            count++;
+                        }
+                    }
+                    
+                    // Store result
+                    if (count > 0) {
+                        sums[rowIndex] = isAverage ? sum / count : sum;
+                        avgCounts[rowIndex] = count;
+                    } else {
+                        sums[rowIndex] = isAverage ? 0 : 0;
+                    }
+                }
+                
+                // Handle NaN values if specified
+                if (typeof nanValue !== 'undefined') {
+                    for (let i = 0; i < sums.length; i++) {
+                        if (typeof sums[i] === 'number' && isNaN(sums[i])) {
+                            sums[i] = nanValue;
+                        }
+                    }
+                }
+                
+                // Add the summary column
+                this.addColumn(label, sums);
+                
+            } catch (error) {
+                return this._handleError('Failed to sum rows: ' + error.message, 'InternalError', 'DataMaster');
+            }
+            
+            return this; // For chaining
+        }
+        
+        /**
+         * Reorders the DataMaster columns and removes unwanted fields
+         * @param {Array<string|number>} fields - The fields to keep and their order
+         * @returns {DataMaster} this for chaining
+         */
+        reorder(fields) {
+            if (!Array.isArray(this._table) || !Array.isArray(this._fields)) {
+                return this._handleError('Invalid table or fields state', 'StateError', 'DataMaster');
+            }
+            
+            if (!Array.isArray(fields)) {
+                return this._handleError('Fields parameter must be an array', 'UserError', 'DataMaster');
+            }
+            
+            if (fields.length === 0) {
+                return this._handleError('At least one field must be specified for reordering', 'UserError', 'DataMaster');
+            }
+            
+            try {
+                // Use the helper function to reorder the data
+                const result = reorderTableData(this._table, this._fields, fields);
+                
+                if (!result.success) {
+                    return this._handleError(result.error, 'UserError', 'DataMaster');
+                }
+                
+                // Update the internal state with reordered data
+                this._table = result.table;
+                this._fields = result.fields;
+                
+            } catch (error) {
+                return this._handleError('Failed to reorder data: ' + error.message, 'InternalError', 'DataMaster');
+            }
+            
+            return this; // For chaining
+        }
+        
+        /**
+         * Modifies existing field names using a mapping object
+         * @param {Object} fieldMap - Object mapping old field names to new field names
+         * @param {boolean} [reorderAfter=false] - Whether to reorder data to match the mapping order
+         * @returns {DataMaster} this for chaining
+         */
+        modifyFieldNames(fieldMap, reorderAfter = false) {
+            if (!Array.isArray(this._table) || !Array.isArray(this._fields)) {
+                return this._handleError('Invalid table or fields state', 'StateError', 'DataMaster');
+            }
+            
+            if (typeof fieldMap !== 'object' || fieldMap === null || Array.isArray(fieldMap)) {
+                return this._handleError('Field map must be an object', 'UserError', 'DataMaster');
+            }
+            
+            const mappingKeys = Object.keys(fieldMap);
+            if (mappingKeys.length === 0) {
+                return this._handleError('Field map cannot be empty', 'UserError', 'DataMaster');
+            }
+            
+            try {
+                // Validate that all keys in the mapping exist as current field names
+                for (let i = 0; i < mappingKeys.length; i++) {
+                    const oldFieldName = mappingKeys[i];
+                    const fieldIndex = this._fields.indexOf(oldFieldName);
+                    
+                    if (fieldIndex === -1) {
+                        return this._handleError(`Field '${oldFieldName}' not found`, 'UserError', 'DataMaster');
+                    }
+                }
+                
+                // Apply the field name changes
+                for (let i = 0; i < mappingKeys.length; i++) {
+                    const oldFieldName = mappingKeys[i];
+                    const newFieldName = fieldMap[oldFieldName];
+                    
+                    if (typeof newFieldName !== 'string') {
+                        return this._handleError(`New field name for '${oldFieldName}' must be a string`, 'UserError', 'DataMaster');
+                    }
+                    
+                    const fieldIndex = this._fields.indexOf(oldFieldName);
+                    this._fields[fieldIndex] = newFieldName;
+                }
+                
+                // If reorderAfter is true, reorder the data to match the mapping order
+                if (reorderAfter) {
+                    const newOrder = mappingKeys.map(oldField => fieldMap[oldField]);
+                    const result = reorderTableData(this._table, this._fields, newOrder);
+                    
+                    if (!result.success) {
+                        return this._handleError(result.error, 'InternalError', 'DataMaster');
+                    }
+                    
+                    this._table = result.table;
+                    this._fields = result.fields;
+                }
+                
+            } catch (error) {
+                return this._handleError('Failed to modify field names: ' + error.message, 'InternalError', 'DataMaster');
+            }
+            
+            return this; // For chaining
+        }
+        
+        /**
+         * Sets the field names to new values
+         * @param {Array<string>} fields - The new field names
+         * @returns {DataMaster} this for chaining
+         */
+        setFieldNames(fields) {
+            if (!Array.isArray(this._table) || !Array.isArray(this._fields)) {
+                return this._handleError('Invalid table or fields state', 'StateError', 'DataMaster');
+            }
+            
+            if (!Array.isArray(fields)) {
+                return this._handleError('Fields must be an array', 'UserError', 'DataMaster');
+            }
+            
+            if (fields.length === 0) {
+                return this._handleError('Fields array cannot be empty', 'UserError', 'DataMaster');
+            }
+            
+            try {
+                // Validate that all field names are strings
+                for (let i = 0; i < fields.length; i++) {
+                    if (typeof fields[i] !== 'string') {
+                        return this._handleError(`Field name at index ${i} must be a string`, 'UserError', 'DataMaster');
+                    }
+                }
+                
+                // Replace field names up to the shorter of the two arrays
+                const maxLength = Math.min(fields.length, this._fields.length);
+                for (let i = 0; i < maxLength; i++) {
+                    this._fields[i] = fields[i];
+                }
+                
+            } catch (error) {
+                return this._handleError('Failed to set field names: ' + error.message, 'InternalError', 'DataMaster');
+            }
+            
+            return this; // For chaining
+        }
+        
+        /**
+         * Limits the DataMaster to only rows that match the filter criteria (destructive operation)
+         * @param {Object|Function} filter - Object with field-value pairs for AND filtering, or function that receives row object
+         * @returns {DataMaster} this for chaining
+         */
+        limit(filter) {
+            try {
+                // Execute the programmatic filter using the unified engine
+                const result = this._executeProgrammaticFilter(filter);
+                
+                if (!result.success) {
+                    return this._handleError(result.error, 'UserError', 'DataMaster');
+                }
+                
+                // Update the internal table with filtered data (destructive operation)
+                this._table = result.table;
+                
+            } catch (error) {
+                return this._handleError('Failed to limit data: ' + error.message, 'InternalError', 'DataMaster');
+            }
+            
+            return this; // For chaining
+        }
+        
+        /**
+         * Executes a WHERE clause and removes non-matching rows (destructive operation)
+         * @param {string} clauseString - The WHERE clause to execute (supports field names, =, !=, AND, OR, parentheses, wildcards, custom functions)
+         * @param {Object} [queryFunctions={}] - Custom query functions for advanced filtering
+         * @returns {DataMaster} this for chaining
+         */
+        limitWhere(clauseString, queryFunctions = {}) {
+            if (!Array.isArray(this._table) || !Array.isArray(this._fields)) {
+                return this._handleError('Invalid table or fields state', 'StateError', 'DataMaster');
+            }
+            
+            if (typeof clauseString !== 'string') {
+                return this._handleError('Clause string must be a string', 'UserError', 'DataMaster');
+            }
+            
+            if (clauseString.length === 0) {
+                return this._handleError('Clause string cannot be empty', 'UserError', 'DataMaster');
+            }
+            
+            try {
+                // Execute the WHERE clause using the internal engine
+                const result = this._executeWhere(clauseString, queryFunctions);
+                
+                if (!result.success) {
+                    return this._handleError(result.error, 'UserError', 'DataMaster');
+                }
+                
+                // Update the internal table with filtered data (destructive operation)
+                this._table = result.table;
+                
+            } catch (error) {
+                return this._handleError('Failed to execute WHERE clause: ' + error.message, 'InternalError', 'DataMaster');
+            }
+            
+            return this; // For chaining
+        }
+        
+        /**
+         * Removes duplicate entries from the table based on the specified fields
+         * @param {Array|string|number} [fields] - The fields to match on for duplicate detection
+         * @returns {DataMaster} this for chaining
+         */
+        removeDuplicates(fields) {
+            if (!Array.isArray(this._table) || !Array.isArray(this._fields)) {
+                return this._handleError('Invalid table or fields state', 'StateError', 'DataMaster');
+            }
+            
+            if (this._table.length === 0) {
+                return this; // No table data to process
+            }
+            
+            // Default to all fields if none specified
+            if (typeof fields === 'undefined') {
+                fields = [...this._fields]; // Create a copy
+            }
+            
+            // Convert to array if only one field provided
+            if (!Array.isArray(fields)) {
+                fields = [fields];
+            }
+            
+            if (fields.length === 0) {
+                return this._handleError('At least one field must be specified for duplicate detection', 'UserError', 'DataMaster');
+            }
+            
+            try {
+                // Generate column indexes for the specified fields
+                const columnIndexes = [];
+                for (let f = 0; f < fields.length; f++) {
+                    let columnIndex;
+                    
+                    if (typeof fields[f] === 'number') {
+                        if (fields[f] < 0 || fields[f] >= this._fields.length) {
+                            return this._handleError(`Field index ${fields[f]} is out of bounds`, 'UserError', 'DataMaster');
+                        }
+                        columnIndex = fields[f];
+                    } else if (typeof fields[f] === 'string') {
+                        columnIndex = this._fields.indexOf(fields[f]);
+                        if (columnIndex === -1) {
+                            return this._handleError(`Field '${fields[f]}' not found`, 'UserError', 'DataMaster');
+                        }
+                    } else {
+                        return this._handleError('Field references must be strings or numbers', 'UserError', 'DataMaster');
+                    }
+                    
+                    columnIndexes.push(columnIndex);
+                }
+                
+                const newTable = [];
+                
+                // Check each row for duplicates
+                for (let row = 0; row < this._table.length; row++) {
+                    if (!Array.isArray(this._table[row])) {
+                        continue; // Skip invalid rows
+                    }
+                    
+                    if (!isRowDuplicate(this._table[row], newTable, columnIndexes)) {
+                        newTable.push([...this._table[row]]); // Add a copy of the row
+                    }
+                }
+                
+                // Replace the table with the deduplicated version
+                this._table = newTable;
+                
+            } catch (error) {
+                return this._handleError('Failed to remove duplicates: ' + error.message, 'InternalError', 'DataMaster');
+            }
+            
+            return this; // For chaining
+        }
+
+        
+        // --- Non-Mutating Methods (return new values) ---
+        
+        /**
+         * Searches and returns a new DataMaster instance with filtered data
+         * @param {Object|Function} filter - Object with field-value pairs for AND filtering, or function that receives row object
+         * @returns {DataMaster} New DataMaster instance with filtered data
+         */
+        search(filter) {
+            try {
+                // Execute the programmatic filter using the unified engine
+                const result = this._executeProgrammaticFilter(filter);
+                
+                if (!result.success) {
+                    return this._handleError(result.error, 'UserError', 'DataMaster');
+                }
+                
+                // Return new DataMaster instance with filtered data
+                return new DataMaster(result.table, [...this._fields], this._options);
+                
+            } catch (error) {
+                return this._handleError('Failed to search data: ' + error.message, 'InternalError', 'DataMaster');
+            }
+        }
+        
+        /**
+         * Executes a WHERE clause and returns a new DataMaster instance with matching rows
+         * @param {string} clauseString - The WHERE clause to execute (supports field names, =, !=, AND, OR, parentheses, wildcards, custom functions)
+         * @param {Object} [queryFunctions={}] - Custom query functions for advanced filtering
+         * @returns {DataMaster} New DataMaster instance with filtered data
+         */
+        where(clauseString, queryFunctions = {}) {
+            if (!Array.isArray(this._table) || !Array.isArray(this._fields)) {
+                return this._handleError('Invalid table or fields state', 'StateError', 'DataMaster');
+            }
+            
+            if (typeof clauseString !== 'string') {
+                return this._handleError('Clause string must be a string', 'UserError', 'DataMaster');
+            }
+            
+            if (clauseString.length === 0) {
+                return this._handleError('Clause string cannot be empty', 'UserError', 'DataMaster');
+            }
+            
+            try {
+                // Execute the WHERE clause using the internal engine
+                const result = this._executeWhere(clauseString, queryFunctions);
+                
+                if (!result.success) {
+                    return this._handleError(result.error, 'UserError', 'DataMaster');
+                }
+                
+                // Return new DataMaster instance with filtered data (Clone on Select pattern)
+                return new DataMaster(result.table, [...this._fields], this._options);
+                
+            } catch (error) {
+                return this._handleError('Failed to execute WHERE clause: ' + error.message, 'InternalError', 'DataMaster');
+            }
+        }
+        
+        /**
+         * Returns the positional indices of rows that match the filter criteria
+         * @param {Object|Function} filter - Object with field-value pairs for AND filtering, or function that receives row object
+         * @returns {Array<number>} Array of row indices that match the filter
+         */
+        getIndices(filter) {
+            try {
+                // Execute the programmatic filter using the unified engine
+                const result = this._executeProgrammaticFilter(filter);
+                
+                if (!result.success) {
+                    return this._handleError(result.error, 'UserError', 'Array');
+                }
+                
+                // Return only the indices
+                return result.indices;
+                
+            } catch (error) {
+                return this._handleError('Failed to get indices: ' + error.message, 'InternalError', 'Array');
+            }
+        }
+        
+        /**
+         * Returns the positional indices of rows that match the WHERE clause
+         * @param {string} clauseString - The WHERE clause to execute (supports field names, =, !=, AND, OR, parentheses, wildcards, custom functions)
+         * @param {Object} [queryFunctions={}] - Custom query functions for advanced filtering
+         * @returns {Array<number>} Array of row indices that match the WHERE clause
+         */
+        getIndicesWhere(clauseString, queryFunctions = {}) {
+            if (!Array.isArray(this._table) || !Array.isArray(this._fields)) {
+                return this._handleError('Invalid table or fields state', 'StateError', 'Array');
+            }
+            
+            if (typeof clauseString !== 'string') {
+                return this._handleError('Clause string must be a string', 'UserError', 'Array');
+            }
+            
+            if (clauseString.length === 0) {
+                return this._handleError('Clause string cannot be empty', 'UserError', 'Array');
+            }
+            
+            try {
+                // Execute the WHERE clause using the internal engine
+                const result = this._executeWhere(clauseString, queryFunctions);
+                
+                if (!result.success) {
+                    return this._handleError(result.error, 'UserError', 'Array');
+                }
+                
+                // Return only the indices
+                return result.indices;
+                
+            } catch (error) {
+                return this._handleError('Failed to get indices with WHERE clause: ' + error.message, 'InternalError', 'Array');
+            }
+        }
+        
+        /**
+         * Unified query engine for declarative data manipulation.
+         * Adheres to the mutability contract: 'select' returns a new instance,
+         * while 'update' and 'delete' modify the instance in-place and return `this`.
+         * @param {string} verb - The actionodtn to perform: 'select', 'update', or 'delete'.
+         * @param {Object} options - Configuration object for the query.
+         * @returns {DataMaster|this} A new DataMaster instance for 'select', or `this` for mutators.
+         */
+        query(verb, options = {}) {
+            if (typeof verb !== 'string') {
+                return this._handleError("Query verb must be a string ('select', 'update', 'delete').", 'UserError', 'DataMaster');
+            }
+
+            switch (verb.toLowerCase()) {
+                case 'select':
+                    return this._executeQuerySelect(options);
+                case 'update':
+                    return this._executeQueryUpdate(options);
+                case 'delete':
+                    return this._executeQueryDelete(options);
+                default:
+                    return this._handleError(`Unsupported query verb: '${verb}'.`, 'UserError', 'DataMaster');
+            }
+        }
+
+        /**
+         * Internal handler for 'select' queries.
+         * @private
+         * @param {Object} options - Query options.
+         * @returns {DataMaster} A new, transformed DataMaster instance.
+         */
+        _executeQuerySelect(options) {
+            // "Clone on Select" pattern: all operations are on a temporary clone.
+            const tempDM = this.clone();
+
+            // 1. WHERE clause: Filter the rows (destructive on the clone).
+            if (options.where) {
+                if (typeof options.where === 'string') {
+                    tempDM.limitWhere(options.where, options.queryFunctions);
+                } else {
+                    tempDM.limit(options.where);
+                }
+            }
+
+            // 2. ORDER BY clause: Sort the remaining rows.
+            if (options.orderBy) {
+                const sortParams = parseOrderByClause(options.orderBy);
+                if (typeof sortParams === 'string') {
+                    return this._handleError(sortParams, 'UserError', 'DataMaster');
+                }
+                tempDM.sort(sortParams.fields, sortParams.desc);
+            }
+
+            // 3. SELECT fields: Reorder/limit columns.
+            if (options.fields) {
+                let fieldsToSelect = options.fields;
+                if (fieldsToSelect !== '*') {
+                    if (typeof fieldsToSelect === 'string') {
+                        fieldsToSelect = fieldsToSelect.split(',').map(f => f.trim());
+                    }
+                    tempDM.reorder(fieldsToSelect);
+                }
+            }
+            
+            // Return the fully transformed clone.
+            return tempDM;
+        }
+
+        /**
+         * Internal handler for 'update' queries.
+         * @private
+         * @param {Object} options - Query options.
+         * @returns {this} The mutated DataMaster instance.
+         */
+        _executeQueryUpdate(options) {
+            // Validation: 'where' and 'set' are mandatory.
+            if (!options.where) {
+                return this._handleError("UPDATE statements require a 'where' clause.", 'UserError', 'DataMaster');
+            }
+            if (!options.set || typeof options.set !== 'object' || Array.isArray(options.set)) {
+                return this._handleError("UPDATE statements require a 'set' object.", 'UserError', 'DataMaster');
+            }
+
+            // 1. Find rows to update using the non-destructive index search.
+            let indicesToUpdate;
+            if (typeof options.where === 'string') {
+                indicesToUpdate = this.getIndicesWhere(options.where, options.queryFunctions);
+            } else {
+                indicesToUpdate = this.getIndices(options.where);
+            }
+
+            // Check if getIndices returned an error array
+            if (Array.isArray(indicesToUpdate) && indicesToUpdate.length > 0 && typeof indicesToUpdate[0] === 'object' && indicesToUpdate[0].ErrorType) {
+                 return this._handleError(indicesToUpdate[0].Message, 'UserError', 'DataMaster');
+            }
+
+            // 2. Perform the update using .modifyCell()
+            const fieldsToUpdate = Object.keys(options.set);
+            for (const rowIndex of indicesToUpdate) {
+                for (const field of fieldsToUpdate) {
+                    this.modifyCell(rowIndex, field, options.set[field]);
+                }
+            }
+
+            return this;
+        }
+
+        /**
+         * Internal handler for 'delete' queries.
+         * @private
+         * @param {Object} options - Query options.
+         * @returns {this} The mutated DataMaster instance.
+         */
+        _executeQueryDelete(options) {
+            // Validation: 'where' is mandatory.
+            if (!options.where) {
+                return this._handleError("DELETE statements require a 'where' clause.", 'UserError', 'DataMaster');
+            }
+
+            // 1. Find rows to delete using the non-destructive index search.
+            let indicesToDelete;
+            if (typeof options.where === 'string') {
+                indicesToDelete = this.getIndicesWhere(options.where, options.queryFunctions);
+            } else {
+                indicesToDelete = this.getIndices(options.where);
+            }
+            
+            // Check if getIndices returned an error array
+            if (Array.isArray(indicesToDelete) && indicesToDelete.length > 0 && typeof indicesToDelete[0] === 'object' && indicesToDelete[0].ErrorType) {
+                 return this._handleError(indicesToDelete[0].Message, 'UserError', 'DataMaster');
+            }
+
+            // 2. IMPORTANT: Sort indices in descending order to prevent shifting issues.
+            indicesToDelete.sort((a, b) => b - a);
+
+            // 3. Perform the deletion using .removeRow()
+            for (const rowIndex of indicesToDelete) {
+                this.removeRow(rowIndex);
+            }
+
+            return this;
         }
     }
-
-    // Static property for the default library
-    TableGenerator.defaultLibrary = {
-        "firstName": [
-            "Alice", "Bob", "Cindy", "David", "Eleanor", "Frank", "Grace", "Hank",
-            "Ivy", "Jack", "Katherine", "Liam", "Mia", "Noah", "Olivia", "Peter",
-            "Quinn", "Rachel", "Samuel", "Tina"
-        ],
-        "lastName": [
-            "Anderson", "Baker", "Carter", "Dawson", "Evans", "Fletcher", "Garcia",
-            "Henderson", "Ingram", "Jackson", "Kennedy", "Lewis", "Mitchell", 
-            "Nelson", "Owens", "Patterson", "Quinn", "Richardson", "Stevens",
-            "Thompson"
-        ]
-    };
-
-    /******* UTILITY FUNCTIONS (Public Layer 2) **********************************************************/
-
+    
+    // --- Conversion Utilities ---
+    
     const converters = {
-        recordsetToTable: function(recordset) {
-            return recordsetToRecordTable(recordset);
-        },
-        csvToTable: function(csvString, options) {
-            const table = csvToTable(csvString, options);
-            return {
-                fields: table.length > 0 ? table[0].map((_, i) => i.toString()) : [],
-                table: table
-            };
-        }
+        recordsetToTable,
+        tableToRecordset,
+        csvToTable,
+        tableToCsv
     };
-
-    function generate(template) {
-        const generator = new TableGenerator();
-        return generator.generate(template);
-    }
-
-    /******* PUBLIC API ASSEMBLY **********************************************************/
-
+    
+    // --- TableGenerator Class Placeholder ---
+    // class TableGenerator { ... }
+    
+    // --- Public API Assembly ---
+    
     const jwdm = {
         DataMaster,
-        TableGenerator,
         converters,
-        generate
+        // TableGenerator,
+        // generate: function(template) { ... }
     };
-
-    /******* UNIVERSAL EXPORT LOGIC **********************************************************/
-
+    
+    // --- Universal Export Logic ---
+    
     if (typeof module !== 'undefined' && module.exports) {
-        module.exports = jwdm; // Node.js
+        // Node.js - Export DataMaster as the default export with convenience functions
+        const DataMasterWithConvenience = Object.assign(DataMaster, {
+            fromTable: DataMaster.fromTable.bind(DataMaster),
+            fromRecordset: DataMaster.fromRecordset.bind(DataMaster),
+            fromCsv: DataMaster.fromCsv.bind(DataMaster),
+            fromGenerator: DataMaster.fromGenerator.bind(DataMaster)
+        });
+        
+        // Export both the enhanced DataMaster and the original jwdm object
+        module.exports = DataMasterWithConvenience;
+        module.exports.jwdm = jwdm;
     } else {
-        global.jwdm = jwdm; // Browser
+        // Browser - Expose both the enhanced DataMaster and jwdm object
+        const DataMasterWithConvenience = Object.assign(DataMaster, {
+            fromTable: DataMaster.fromTable.bind(DataMaster),
+            fromRecordset: DataMaster.fromRecordset.bind(DataMaster),
+            fromCsv: DataMaster.fromCsv.bind(DataMaster),
+            fromGenerator: DataMaster.fromGenerator.bind(DataMaster)
+        });
+        
+        global.DataMaster = DataMasterWithConvenience;
+        global.jwdm = jwdm;
     }
-
+    
 }(this || window));
