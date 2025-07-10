@@ -118,7 +118,21 @@ Removes all rows that do not match the filter. Destructive version of `.search()
 ```javascript
 dm.limit({ status: 'active' }); // Keep only active rows
 dm.limit(row => row.age > 30); // Keep rows where age > 30
-dm.limit("status = 'active' AND age > 30"); // Keep rows matching the query
+```
+
+#### `.limitWhere(clauseString, queryFunctions)`
+
+Removes all rows that do not match a SQL-like WHERE clause string. Destructive version of `.where()`.
+
+**Parameters:**
+- `clauseString` (String): The WHERE clause logic.
+- `queryFunctions` (Object, optional): Custom query functions for advanced filtering.
+
+**Returns:** `this` - The modified DataMaster instance.
+
+**Example:**
+```javascript
+dm.limitWhere("status = 'active' AND age > 30"); // Keep rows matching the query
 ```
 
 #### `.sort(fieldOrFields, isDescending)`
@@ -218,12 +232,13 @@ const activeUsers = dm.search({ status: 'active' });
 const seniorUsers = dm.search(row => row.age > 50);
 ```
 
-#### `.where(clauseString)`
+#### `.where(clauseString, queryFunctions)`
 
 Finds all rows that match a SQL-like WHERE clause string and returns them in a new DataMaster instance.
 
 **Parameters:**
 - `clauseString` (String): The WHERE clause logic.
+- `queryFunctions` (Object, optional): Custom query functions for advanced filtering.
 
 **Returns:** `DataMaster` - A new DataMaster instance containing only the matching rows.
 
@@ -231,6 +246,13 @@ Finds all rows that match a SQL-like WHERE clause string and returns them in a n
 ```javascript
 const highValueSales = dm.where("status = 'active' AND sales > 1000");
 ```
+
+> **Note:** DataMaster provides three pairs of methods for filtering data:
+> - `.search()` / `.where()` - Return new DataMaster instances with filtered data
+> - `.limit()` / `.limitWhere()` - Modify current instance by removing non-matching rows
+> - `.getIndices()` / `.getIndicesWhere()` - Return arrays of matching row indices
+> 
+> Each pair follows the same pattern: the first method accepts objects/functions, the second accepts WHERE clause strings.
 
 #### `.query(verb, options)`
 
@@ -259,12 +281,13 @@ Gets the current, positional indices of rows matching a programmatic filter.
 const activeIndices = dm.getIndices({ status: 'active' });
 ```
 
-#### `.getIndicesWhere(clauseString)`
+#### `.getIndicesWhere(clauseString, queryFunctions)`
 
 Gets the current, positional indices of rows matching a SQL-like WHERE clause.
 
 **Parameters:**
 - `clauseString` (String): The WHERE clause logic.
+- `queryFunctions` (Object, optional): Custom query functions for advanced filtering.
 
 **Returns:** `Array<Number>` - An array of zero-based row indices.
 
@@ -328,15 +351,15 @@ const csv = dm.toCsv();
 
 ## The TableGenerator Class
 
-A class for generating mock data. Usually used via `DataMaster.fromGenerator()` or `jwdm.generate()`.
+A class for generating mock data. Usually used via `DataMaster.fromGenerator()`.
 
 *A brief description of its generate method would go here.*
 
 ## Top-Level Utility Functions
 
-Convenience functions available on the main jwdm object.
+Convenience functions available on the main DataMaster object.
 
-### `jwdm.generate(template)`
+### `DataMaster.generate(template)`
 
 A stateless wrapper around the TableGenerator for quick mock data creation.
 
@@ -347,14 +370,14 @@ A stateless wrapper around the TableGenerator for quick mock data creation.
 
 **Example:**
 ```javascript
-const mockData = jwdm.generate(myTemplate);
+const mockData = DataMaster.generate(myTemplate);
 ```
 
-### `jwdm.converters`
+### `DataMaster.converters`
 
 An object containing stateless utility functions for converting between data formats.
 
-- `jwdm.converters.recordsetToTable(recordset)`
-- `jwdm.converters.csvToTable(csvString, options)`
+- `DataMaster.converters.recordsetToTable(recordset)`
+- `DataMaster.converters.csvToTable(csvString, options)`
 
 **Returns:** `Object` - An object with fields and table properties.

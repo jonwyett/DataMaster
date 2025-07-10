@@ -3209,13 +3209,6 @@
     
     // --- Public API Assembly ---
     
-    const jwdm = {
-        DataMaster,
-        converters,
-        // TableGenerator,
-        // generate: function(template) { ... }
-    };
-    
     // --- Universal Export Logic ---
     
     if (typeof module !== 'undefined' && module.exports) {
@@ -3224,23 +3217,22 @@
             fromTable: DataMaster.fromTable.bind(DataMaster),
             fromRecordset: DataMaster.fromRecordset.bind(DataMaster),
             fromCsv: DataMaster.fromCsv.bind(DataMaster),
-            fromGenerator: DataMaster.fromGenerator.bind(DataMaster)
+            fromGenerator: DataMaster.fromGenerator.bind(DataMaster),
+            converters
         });
         
-        // Export both the enhanced DataMaster and the original jwdm object
         module.exports = DataMasterWithConvenience;
-        module.exports.jwdm = jwdm;
     } else {
-        // Browser - Expose both the enhanced DataMaster and jwdm object
+        // Browser - Expose DataMaster with convenience functions
         const DataMasterWithConvenience = Object.assign(DataMaster, {
             fromTable: DataMaster.fromTable.bind(DataMaster),
             fromRecordset: DataMaster.fromRecordset.bind(DataMaster),
             fromCsv: DataMaster.fromCsv.bind(DataMaster),
-            fromGenerator: DataMaster.fromGenerator.bind(DataMaster)
+            fromGenerator: DataMaster.fromGenerator.bind(DataMaster),
+            converters
         });
         
         global.DataMaster = DataMasterWithConvenience;
-        global.jwdm = jwdm;
     }
     
 }(this || window));

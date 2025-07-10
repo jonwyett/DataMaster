@@ -1,5 +1,7 @@
 # DataMaster
 
+> ⚠️ **BREAKING CHANGES:** This is a major version release with significant API changes. This version is **NOT backward compatible** with previous versions. See the [Migration Guide](#migration-guide) for upgrade instructions.
+
 A powerful and intuitive JavaScript library for in-memory data manipulation. Think of it as a Swiss Army Knife for wrangling spreadsheet-style data, combining a fluent programmatic API with a powerful SQL-like query engine.
 
 Whether you're cleaning data from an API, preparing it for a charting library, or performing complex transformations, DataMaster provides the tools you need in a clear and predictable way.
@@ -28,10 +30,10 @@ const salesData = [
 ];
 
 // 2. Instantiate from the recordset using a clear factory method
-const dm = jwdm.DataMaster.fromRecordset(salesData);
+const dm = DataMaster.fromRecordset(salesData);
 
 // 3. Chain operations to clean and shape the data
-dm.query("DELETE WHERE status = 'archived'") // Use query() to remove old data
+dm.query('delete', { where: "status = 'archived'" }) // Use query() to remove old data
   .sort('sales', true) // Sort by sales, descending
   .removeDuplicates(['product', 'region']); // Keep the highest sale for each product/region
 
@@ -54,29 +56,51 @@ console.log(csvReport);
 ### In Node.js
 
 ```bash
-npm install datamaster-lib
+npm install jw-datamaster
 ```
 
 ```javascript
-const jwdm = require('datamaster-lib');
-const { DataMaster } = jwdm;
+const DataMaster = require('jw-datamaster');
 ```
 
 ### In the Browser
 
-Download the `datamaster.min.js` file from the latest release and include it in your HTML. The library will be available on the `window.jwdm` object.
+Download the `datamaster.js` file from the latest release and include it in your HTML. The library will be available as `window.DataMaster`.
 
 ```html
-<script src="path/to/datamaster.min.js"></script>
+<script src="path/to/datamaster.js"></script>
 <script>
-    const { DataMaster } = window.jwdm;
+    // DataMaster is available globally
+    const dm = DataMaster.fromRecordset(salesData);
     // ... your code here
 </script>
 ```
 
 ## Documentation
 
-- **API Reference:** A detailed dictionary of every public class and method.
-- **Query Guide:** A deep dive into the powerful `.query()` method and its syntax.
-- **Migration Guide:** Upgrading from an older version? Start here for a guide to the breaking changes.
-- **Contributing:** Want to help improve the library? Read our contribution guidelines.
+- **[API Reference](docs/api-reference.md):** A detailed dictionary of every public class and method.
+- **[Query Guide](docs/query-syntax.md):** A deep dive into the powerful `.query()` method and its syntax.
+- **[Migration Guide](docs/migration-guide.md):** **REQUIRED READING** for upgrading from previous versions. This version introduces breaking changes.
+
+## Migration Guide
+
+**⚠️ IMPORTANT:** This version contains breaking changes and is not backward compatible with previous versions.
+
+### Major Changes:
+- Complete API redesign with new factory methods
+- New instantiation patterns (no direct constructor access)
+- Updated method signatures and return values
+- Enhanced error handling system
+- New query engine syntax
+
+### Quick Migration Steps:
+1. **Update package name:** Change `datamaster-lib` to `jw-datamaster` in package.json
+2. **Update imports:** Use new factory methods like `DataMaster.fromRecordset()`
+3. **Review method calls:** Many method signatures have changed
+4. **Test thoroughly:** Due to extensive changes, comprehensive testing is recommended
+
+For detailed migration instructions, see the [Migration Guide](docs/migration-guide.md).
+
+## License
+
+MIT License - see LICENSE file for details. 
