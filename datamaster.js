@@ -1,4 +1,6 @@
 /**
+ * ver 5.0.1 25/07/10
+ * - remove refreces to table generator
  * ver 5.0.0 25/07/10
  * - total refactor and major upgrade
 **/

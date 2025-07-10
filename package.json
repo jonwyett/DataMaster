@@ -1,6 +1,6 @@
 {
   "name": "jw-datamaster",
-  "version": "5.0.0",
+  "version": "5.0.1",
   "description": "A powerful JavaScript Swiss Army Knife for database-style data manipulation with SQL-like querying, filtering, sorting, and transformation capabilities. Supports recordsets, tables, CSV, and advanced query operations including WHERE clauses, ORDER BY, pagination, custom functions, and programmatic filtering.",
   "main": "datamaster.js",
   "scripts": {
