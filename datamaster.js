@@ -1,6 +1,7 @@
 /**
- * DataMaster v2.0 - Core Scaffold
- * A powerful, intuitive Swiss Army Knife for JavaScript data manipulation
+ * DataMaster v2.1 - Core Scaffold with Upgraded Query Engine
+ * A powerful, intuitive Swiss Army Knife for JavaScript data manipulation.
+ * Now incorporates the advanced parsing and execution logic from DataQuery.
  */
 
 (function(global) {
@@ -624,178 +625,14 @@
         }
     }
 
-    /**
-     * Filters table data based on a key-value object using AND logic
-     * @param {Array<Array>} table - The table data to filter
-     * @param {Array<string>} fields - The field names
-     * @param {Object} filterObject - Object with field-value pairs for filtering
-     * @returns {Object} Object with {success: boolean, table: Array<Array>, indices: Array<number>, error: string}
-     */
-    function filterTableByObject(table, fields, filterObject) {
-        if (!Array.isArray(table) || !Array.isArray(fields)) {
-            return { 
-                success: false, 
-                table: [], 
-                indices: [],
-                error: 'Invalid table or fields parameters' 
-            };
-        }
-        
-        if (typeof filterObject !== 'object' || filterObject === null || Array.isArray(filterObject)) {
-            return { 
-                success: false, 
-                table: [], 
-                indices: [],
-                error: 'Filter must be an object' 
-            };
-        }
-        
-        const filterKeys = Object.keys(filterObject);
-        if (filterKeys.length === 0) {
-            // Return all rows and their indices
-            const allIndices = [];
-            for (let i = 0; i < table.length; i++) {
-                allIndices.push(i);
-            }
-            return { success: true, table: [...table], indices: allIndices, error: null };
-        }
-        
-        try {
-            // Validate that all filter keys exist as field names
-            const columnIndexes = {};
-            for (let i = 0; i < filterKeys.length; i++) {
-                const fieldName = filterKeys[i];
-                const columnIndex = fields.indexOf(fieldName);
-                
-                if (columnIndex === -1) {
-                    return { 
-                        success: false, 
-                        table: [], 
-                        indices: [],
-                        error: `Field '${fieldName}' not found` 
-                    };
-                }
-                
-                columnIndexes[fieldName] = columnIndex;
-            }
-            
-            // Filter the table
-            const filteredTable = [];
-            const filteredIndices = [];
-            
-            for (let r = 0; r < table.length; r++) {
-                if (!Array.isArray(table[r])) {
-                    continue; // Skip invalid rows
-                }
-                
-                let includeRow = true;
-                
-                // Check all filter conditions (AND logic)
-                for (let f = 0; f < filterKeys.length; f++) {
-                    const fieldName = filterKeys[f];
-                    const expectedValue = filterObject[fieldName];
-                    const columnIndex = columnIndexes[fieldName];
-                    const actualValue = table[r][columnIndex];
-                    
-                    // Use soft comparison to match original behavior
-                    if (actualValue != expectedValue) {
-                        includeRow = false;
-                        break;
-                    }
-                }
-                
-                if (includeRow) {
-                    filteredTable.push([...table[r]]); // Add a copy of the row
-                    filteredIndices.push(r); // Add the original row index
-                }
-            }
-            
-            return { success: true, table: filteredTable, indices: filteredIndices, error: null };
-            
-        } catch (error) {
-            return { 
-                success: false, 
-                table: [], 
-                indices: [],
-                error: 'Failed to filter table: ' + error.message 
-            };
-        }
-    }
+    // --- START: Upgraded Query Engine Helpers from DataQuery ---
 
     /**
-     * Filters table data based on a function that receives row objects
-     * @param {Array<Array>} table - The table data to filter
-     * @param {Array<string>} fields - The field names
-     * @param {Function} filterFunction - Function that receives row object and returns boolean
-     * @returns {Object} Object with {success: boolean, table: Array<Array>, indices: Array<number>, error: string}
-     */
-    function filterTableByFunction(table, fields, filterFunction) {
-        if (!Array.isArray(table) || !Array.isArray(fields)) {
-            return { 
-                success: false, 
-                table: [], 
-                indices: [],
-                error: 'Invalid table or fields parameters' 
-            };
-        }
-        
-        if (typeof filterFunction !== 'function') {
-            return { 
-                success: false, 
-                table: [], 
-                indices: [],
-                error: 'Filter must be a function' 
-            };
-        }
-        
-        try {
-            const filteredTable = [];
-            const filteredIndices = [];
-            
-            for (let r = 0; r < table.length; r++) {
-                if (!Array.isArray(table[r])) {
-                    continue; // Skip invalid rows
-                }
-                
-                // Convert row to object for the filter function
-                const rowObject = {};
-                for (let c = 0; c < fields.length && c < table[r].length; c++) {
-                    rowObject[fields[c]] = table[r][c];
-                }
-                
-                try {
-                    // Apply the filter function
-                    const includeRow = filterFunction(rowObject);
-                    
-                    if (includeRow === true) {
-                        filteredTable.push([...table[r]]); // Add a copy of the row
-                        filteredIndices.push(r); // Add the original row index
-                    }
-                    // If function returns falsy or throws, exclude the row
-                } catch (filterError) {
-                    // Continue processing other rows if filter function fails
-                    continue;
-                }
-            }
-            
-            return { success: true, table: filteredTable, indices: filteredIndices, error: null };
-            
-        } catch (error) {
-            return { 
-                success: false, 
-                table: [], 
-                indices: [],
-                error: 'Failed to filter table: ' + error.message 
-            };
-        }
-    }
-
-    /**
-     * Performs case-insensitive comparison with wildcard support
-     * @param {*} value - The value to test
-     * @param {string} query - The query string with potential wildcards
+     * Performs case-insensitive string comparison with wildcard support
+     * @param {*} value - The value to compare
+     * @param {*} query - The query pattern to match against
      * @param {boolean} [forceCaseSensitivity=false] - Whether to force case sensitivity
-     * @returns {boolean} True if the value matches the query
+     * @returns {boolean} True if value matches query pattern
      */
     function looseCaseInsensitiveCompare(value, query, forceCaseSensitivity = false) {
         // Check for null or undefined
@@ -840,55 +677,93 @@
      * @returns {Object|string} Object with name and params properties, or original string if parsing fails
      */
     function parseFunctionString(functionString) {
-        // Check for opening and closing paren 
         const openParenIndex = functionString.indexOf('(');
         const closeParenIndex = functionString.lastIndexOf(')');
-        
-        // Extract functionName and initialize arrayContent as empty array
-        const functionName = openParenIndex === -1 ? 
-            functionString : 
-            functionString.substring(0, openParenIndex);
-        let arrayContent = [];
-        
-        // Parse array content only if brackets are present
-        if (openParenIndex !== -1 && closeParenIndex !== -1) {
-            const arrayContentString = functionString.substring(
-                openParenIndex + 1, closeParenIndex
-            );
-            
-            // Wrap arrayContentString with brackets and evaluate to create array
-            try {
-                arrayContent = JSON.parse(`[${arrayContentString}]`);
-            } catch (error) {
-                return functionString;
+
+        const functionName = openParenIndex === -1 ? functionString : functionString.substring(0, openParenIndex);
+        let params = [];
+
+        if (openParenIndex !== -1 && closeParenIndex > openParenIndex) {
+            const paramsString = functionString.substring(openParenIndex + 1, closeParenIndex).trim();
+            if (paramsString) {
+                // Regex to split by comma, but not inside quotes
+                const paramRegex = /(".*?"|'.*?'|[^,]+)/g;
+                let match;
+                while ((match = paramRegex.exec(paramsString)) !== null) {
+                    let param = match[0].trim();
+                    // Attempt to convert type if not quoted
+                    if ((param.startsWith("'") && param.endsWith("'")) || (param.startsWith('"') && param.endsWith('"'))) {
+                        params.push(param.substring(1, param.length - 1));
+                    } else if (!isNaN(param) && param !== '') {
+                        params.push(parseFloat(param));
+                    } else if (param === 'true') {
+                        params.push(true);
+                    } else if (param === 'false') {
+                        params.push(false);
+                    } else {
+                        params.push(param);
+                    }
+                }
             }
         }
-        
+
         return {
             name: functionName,
-            params: arrayContent
+            params: params
         };
     }
 
     /**
      * Evaluates a single operation (e.g., "1='smith'")
      * @param {Array} data - The row data to evaluate against
+     * @param {Array} fields - The field names
      * @param {string} operation - The operation string
      * @param {Object} [queryFunctions={}] - Custom query functions
      * @returns {string} 'true' or 'false'
      */
-    function evaluateSingleOperation(data, operation, queryFunctions = {}) {
-        const operatorPattern = /(=|!=)/g;
+    function evaluateSingleOperation(data, fields, operation, queryFunctions = {}) {
+        // Input validation
+        if (!Array.isArray(data)) {
+            return 'false';
+        }
+        if (!Array.isArray(fields)) {
+            return 'false';
+        }
+        if (typeof operation !== 'string') {
+            return 'false';
+        }
+        if (operation.trim() === '') {
+            return 'false';
+        }
+        
+        const operatorPattern = /(>=|<=|!=|=|>|<)/g;
         const parts = operation.split(operatorPattern);
         
         if (parts.length !== 3) {
             return 'false';
         }
         
-        const [index, operator, value] = parts;
+        // Trim the parts to handle extraneous whitespace
+        const index = parts[0].trim();
+        const operator = parts[1].trim();
+        const value = parts[2].trim();
         
-        // Remove quotes from the value
-        const cleanValue = value.replace(/['"]/g, '');
+        // Validate operator
+        if (!['>=', '<=', '!=', '=', '>', '<'].includes(operator)) {
+            return 'false';
+        }
+        
+        // Handle case where value is not quoted - this is an ERROR condition
+        let cleanValue;
+        if (value.length >= 2 && 
+            ((value.charAt(0) === '"' && value.charAt(value.length - 1) === '"') ||
+             (value.charAt(0) === "'" && value.charAt(value.length - 1) === "'"))) {
+            // Value is properly quoted
+            cleanValue = value.substring(1, value.length - 1);
+        } else {
+            // Value is not quoted - this is a malformed query that should error
+            return 'ERROR_UNQUOTED_VALUE';
+        }
         
         // Verify that the index is valid
         const columnIndex = parseInt(index);
@@ -896,49 +771,161 @@
             return 'false';
         }
         
-        let matchFound = false;
-        
-        if (cleanValue.charAt(0) === '$') {
-            const functionString = cleanValue.substring(1);
-            const functionParts = parseFunctionString(functionString);
-            const functionName = functionParts.name;
-            const functionParams = functionParts.params;
-            
-            if (typeof queryFunctions[functionName] === 'function') {
-                try {
-                    matchFound = queryFunctions[functionName](data[columnIndex], functionParams);
-                } catch (error) {
-                    matchFound = false;
-                }
-            } else {
-                matchFound = looseCaseInsensitiveCompare(data[columnIndex], cleanValue);
-            }
-        } else {
-            matchFound = looseCaseInsensitiveCompare(data[columnIndex], cleanValue);
+        // Check if the corresponding field exists
+        if (columnIndex >= fields.length) {
+            return 'false';
         }
         
-        // Invert matchFound if the operator is !=
-        matchFound = operator === '!=' ? !matchFound : matchFound;
+        // Handle null/undefined data values
+        const cellValue = data[columnIndex];
+        if (cellValue === null || cellValue === undefined) {
+            // For null/undefined values, only exact matches with empty string or specific null checks work
+            if (cleanValue === '' || cleanValue === 'null' || cleanValue === 'undefined') {
+                return operator === '=' ? 'true' : 'false';
+            }
+            return operator === '!=' ? 'true' : 'false';
+        }
         
+        let matchFound = false;
+
+        if (cleanValue.charAt(0) === '@') {
+            const functionString = cleanValue.substring(1);
+            
+            // Validate function string is not empty
+            if (functionString.trim() === '') {
+                matchFound = false;
+            } else {
+                const functionParts = parseFunctionString(functionString);
+                
+                // Validate function parts were parsed correctly
+                if (!functionParts || typeof functionParts.name !== 'string' || functionParts.name.trim() === '') {
+                    matchFound = false;
+                } else {
+                    const functionName = functionParts.name;
+                    const functionParams = functionParts.params;
+                    
+                    // Validate queryFunctions object
+                    if (!queryFunctions || typeof queryFunctions !== 'object') {
+                        matchFound = false;
+                    } else if (typeof queryFunctions[functionName] === 'function') {
+                        try {
+                            const options = {
+                                value: data[columnIndex],
+                                field: fields[columnIndex],
+                                params: functionParams,
+                                row: fields.reduce((obj, field, index) => {
+                                    obj[field] = data[index];
+                                    return obj;
+                                }, {})
+                            };
+                            const result = queryFunctions[functionName](options);
+                            // Ensure function returns a boolean-like value
+                            matchFound = Boolean(result);
+                        } catch (error) {
+                            console.error(`Error executing query function "${functionName}":`, error);
+                            matchFound = false;
+                        }
+                    } else {
+                        // Fallback for strings that start with @ but aren't functions, e.g. '@username'
+                        matchFound = looseCaseInsensitiveCompare(data[columnIndex], cleanValue);
+                    }
+                }
+            }
+            // Invert for '!=' only if it's a function or fallback string match
+            if (operator === '!=') {
+                matchFound = !matchFound;
+            }
+        } else {
+            const isComparison = ['>', '<', '>=', '<='].includes(operator);
+
+            if (isComparison) {
+                // For numeric comparisons, validate both values can be parsed as numbers
+                const cellValueStr = String(data[columnIndex]);
+                const numCellValue = parseFloat(cellValueStr);
+                const numQueryValue = parseFloat(cleanValue);
+
+                // Handle edge cases for numeric parsing
+                if (isNaN(numCellValue) || isNaN(numQueryValue)) {
+                    matchFound = false;
+                } else if (!isFinite(numCellValue) || !isFinite(numQueryValue)) {
+                    // Handle Infinity cases
+                    matchFound = false;
+                } else {
+                    // Perform numeric comparison
+                    switch (operator) {
+                        case '>': matchFound = numCellValue > numQueryValue; break;
+                        case '<': matchFound = numCellValue < numQueryValue; break;
+                        case '>=': matchFound = numCellValue >= numQueryValue; break;
+                        case '<=': matchFound = numCellValue <= numQueryValue; break;
+                        default: matchFound = false; break;
+                    }
+                }
+            } else { // Operator is '=' or '!='
+                // For equality comparisons, handle various data types safely
+                try {
+                    matchFound = looseCaseInsensitiveCompare(data[columnIndex], cleanValue);
+                    if (operator === '!=') {
+                        matchFound = !matchFound;
+                    }
+                } catch (error) {
+                    console.error(`Error in comparison operation:`, error);
+                    matchFound = false;
+                }
+            }
+        }
+
         return matchFound ? 'true' : 'false';
     }
 
     /**
      * Replaces field expressions with boolean results
      * @param {Array} data - The row data to evaluate against
+     * @param {Array} fields - The field names
      * @param {string} query - The query string with field expressions
      * @param {Object} [queryFunctions={}] - Custom query functions
      * @returns {string} Query string with expressions replaced by boolean values
      */
-    function replaceAndEvaluateExpressions(data, query, queryFunctions = {}) {
-        const regex = /\d+\s*(?:!=|=)\s*'[^']*'/g;
+    function replaceAndEvaluateExpressions(data, fields, query, queryFunctions = {}) {
+        const regex = /\d+\s*(?:>=|<=|!=|=|>|<)\s*(?:"[^"]*"|'[^']*')/g;
         let modifiedStr = query;
         let match;
         
-        while ((match = regex.exec(query)) !== null) {
+        // Use a temporary string for replacement to avoid issues with repeated expressions
+        let tempQuery = query;
+        const replacements = [];
+
+        while ((match = regex.exec(tempQuery)) !== null) {
             const expression = match[0];
-            const evaluatedValue = evaluateSingleOperation(data, expression, queryFunctions);
-            modifiedStr = modifiedStr.replace(expression, evaluatedValue);
+            const evaluatedValue = evaluateSingleOperation(data, fields, expression, queryFunctions);
+            
+            // Check if evaluateSingleOperation returned an error
+            if (evaluatedValue.startsWith('ERROR_')) {
+                // Return error immediately instead of continuing
+                return evaluatedValue;
+            }
+            
+            replacements.push({ expression, evaluatedValue });
+        }
+
+        // Check for unmatched comparison expressions (likely unquoted values)
+        const unquotedPattern = /\d+\s*(?:>=|<=|!=|=|>|<)\s*[^"'\s\(\)]+/g;
+        const unquotedMatches = query.match(unquotedPattern);
+        
+        if (unquotedMatches) {
+            // Filter out matches that were already processed (quoted values)
+            const processedExpressions = replacements.map(r => r.expression);
+            const unprocessedMatches = unquotedMatches.filter(match => 
+                !processedExpressions.some(processed => processed.includes(match))
+            );
+            
+            if (unprocessedMatches.length > 0) {
+                return 'ERROR_UNQUOTED_VALUE';
+            }
+        }
+
+        for (const rep of replacements) {
+            // Replace only the first occurrence to handle queries with identical conditions
+            modifiedStr = modifiedStr.replace(rep.expression, rep.evaluatedValue);
         }
         
         return modifiedStr;
@@ -977,41 +964,22 @@
      * @returns {string} 'true' or 'false'
      */
     function evaluateNestedExpression(expression) {
-        let start = -1;
-        let end = -1;
-        let depth = 0;
-        
-        // Find the inner-most parentheses
-        for (let i = 0; i < expression.length; i++) {
-            if (expression[i] === '(') {
-                if (start === -1) {
-                    start = i;
-                }
-                depth++;
-            } else if (expression[i] === ')') {
-                depth--;
-                if (depth === 0) {
-                    end = i;
-                    break;
-                }
-            }
+        // Keep processing until no parentheses are left
+        while (expression.includes('(')) {
+            const closeParenIndex = expression.indexOf(')');
+            if (closeParenIndex === -1) break; // Malformed expression
+
+            const openParenIndex = expression.lastIndexOf('(', closeParenIndex);
+            if (openParenIndex === -1) break; // Malformed expression
+
+            const innerExpression = expression.substring(openParenIndex + 1, closeParenIndex);
+            const innerResult = evaluateLogicalExpression(innerExpression) ? 'true' : 'false';
+            
+            expression = expression.substring(0, openParenIndex) + innerResult + expression.substring(closeParenIndex + 1);
         }
         
-        // Base case: if no parentheses are found, evaluate the expression directly
-        if (start === -1 || end === -1) {
-            return evaluateLogicalExpression(expression) ? 'true' : 'false';
-        }
-        
-        // Recursive case: evaluate the inner-most expression within the parentheses
-        const innerExpression = expression.substring(start + 1, end);
-        const innerResult = evaluateNestedExpression(innerExpression);
-        
-        // Substitute the inner result back into the original expression
-        const newExpression = expression.substring(0, start) + innerResult + 
-                              expression.substring(end + 1);
-        
-        // Recursively evaluate the new expression
-        return evaluateNestedExpression(newExpression);
+        // Evaluate the final flat expression
+        return evaluateLogicalExpression(expression) ? 'true' : 'false';
     }
 
     /**
@@ -1022,13 +990,14 @@
      */
     function expandAllFields(query, fields) {
         // Regular expression to match OR*=, OR*!=, AND*=, AND*!=
-        const pattern = /(OR|AND)\*\s*(=|!=)\s*'([^']+)'/g;
+        const pattern = /(OR|AND)\s*\*\s*(=|!=)\s*('[^']+'|"[^"]+")/g;
         
         // Replacement function
         const replaceMatch = (match, logicalOperator, operator, value) => {
-            const conditions = fields.map(column => `${column}${operator}'${value}'`);
-            const joiner = logicalOperator === 'OR' ? ' OR ' : ' AND ';
-            return '(' + conditions.join(joiner) + ')';
+            // Create conditions for each field, ensuring field names are not part of the value
+            const conditions = fields.map(column => `${column}${operator}${value}`);
+            const joiner = logicalOperator.trim() === 'OR' ? ' OR ' : ' AND ';
+            return ` ${logicalOperator} (` + conditions.join(joiner) + ')';
         };
         
         // Perform the replacement
@@ -1085,6 +1054,9 @@
         // Return the arrays in an object
         return { fields: fields, desc: orders };
     }
+
+    // --- END: Upgraded Query Engine Helpers ---
+
 
     // --- The DataMaster Class ---
     
@@ -1153,64 +1125,74 @@
          */
         _executeProgrammaticFilter(filter) {
             if (!Array.isArray(this._table) || !Array.isArray(this._fields)) {
-                return {
-                    success: false,
-                    table: [],
-                    indices: [],
-                    error: 'Invalid table or fields state'
-                };
+                return { success: false, table: [], indices: [], error: 'Invalid table or fields state' };
             }
             
-            if (typeof filter === 'undefined') {
-                return {
-                    success: false,
-                    table: [],
-                    indices: [],
-                    error: 'Filter parameter is required'
-                };
+            if (typeof filter === 'undefined' || filter === null) {
+                return { success: false, table: [], indices: [], error: 'Filter parameter is required' };
             }
             
             try {
-                let result;
+                const resultData = [];
+                const resultIndices = [];
                 
                 if (typeof filter === 'function') {
-                    // Use function-based filtering
-                    result = filterTableByFunction(this._table, this._fields, filter);
-                } else if (typeof filter === 'object' && filter !== null && !Array.isArray(filter)) {
-                    // Use object-based filtering
-                    result = filterTableByObject(this._table, this._fields, filter);
+                    // Function-based filtering
+                    for (let i = 0; i < this._table.length; i++) {
+                        if (!Array.isArray(this._table[i])) continue;
+                        
+                        const rowObject = this._fields.reduce((obj, field, index) => {
+                            obj[field] = this._table[i][index];
+                            return obj;
+                        }, {});
+                        
+                        try {
+                            if (filter(rowObject)) {
+                                resultData.push([...this._table[i]]);
+                                resultIndices.push(i);
+                            }
+                        } catch (filterError) {
+                            continue;
+                        }
+                    }
+                } else if (typeof filter === 'object' && filter !== null) {
+                    // Object-based filtering (field-value pairs with AND logic)
+                    const filterKeys = Object.keys(filter);
+                    
+                    for (let i = 0; i < this._table.length; i++) {
+                        if (!Array.isArray(this._table[i])) continue;
+                        
+                        let rowMatches = true;
+                        
+                        for (const key of filterKeys) {
+                            const fieldIndex = this._fields.indexOf(key);
+                            if (fieldIndex === -1) {
+                                rowMatches = false;
+                                break;
+                            }
+                            
+                            const cellValue = this._table[i][fieldIndex];
+                            const filterValue = filter[key];
+                            
+                            if (!looseCaseInsensitiveCompare(cellValue, filterValue)) {
+                                rowMatches = false;
+                                break;
+                            }
+                        }
+                        
+                        if (rowMatches) {
+                            resultData.push([...this._table[i]]);
+                            resultIndices.push(i);
+                        }
+                    }
                 } else {
-                    return {
-                        success: false,
-                        table: [],
-                        indices: [],
-                        error: 'Filter must be an object or function'
-                    };
+                    return { success: false, table: [], indices: [], error: 'Filter must be an object or function' };
                 }
                 
-                if (!result.success) {
-                    return {
-                        success: false,
-                        table: [],
-                        indices: [],
-                        error: result.error
-                    };
-                }
-                
-                return {
-                    success: true,
-                    table: result.table,
-                    indices: result.indices,
-                    error: null
-                };
+                return { success: true, table: resultData, indices: resultIndices, error: null };
                 
             } catch (error) {
-                return {
-                    success: false,
-                    table: [],
-                    indices: [],
-                    error: 'Failed to execute programmatic filter: ' + error.message
-                };
+                return { success: false, table: [], indices: [], error: 'Failed to execute programmatic filter: ' + error.message };
             }
         }
 
@@ -1223,61 +1205,58 @@
          */
         _executeWhere(clauseString, queryFunctions = {}) {
             if (!Array.isArray(this._table) || !Array.isArray(this._fields)) {
-                return {
-                    success: false,
-                    table: [],
-                    indices: [],
-                    error: 'Invalid table or fields state'
-                };
+                return { success: false, table: [], indices: [], error: 'Invalid table or fields state' };
             }
             
             if (typeof clauseString !== 'string') {
-                return {
-                    success: false,
-                    table: [],
-                    indices: [],
-                    error: 'Clause string must be a string'
-                };
+                return { success: false, table: [], indices: [], error: 'Clause string must be a string' };
             }
             
             if (clauseString.length === 0) {
-                return {
-                    success: false,
-                    table: [],
-                    indices: [],
-                    error: 'Clause string cannot be empty'
-                };
+                return { success: false, table: [], indices: [], error: 'Clause string cannot be empty' };
             }
             
             try {
                 // Run the expansion for the * operator
                 let query = expandAllFields(clauseString, this._fields);
-                
-                // The data to return with the matching rows
                 const resultData = [];
                 const resultIndices = [];
                 
                 // Convert field names to array indices
                 for (let i = 0; i < this._fields.length; i++) {
                     const fieldName = this._fields[i];
-                    const regExpEqual = new RegExp(fieldName + '=', 'g');
-                    query = query.replace(regExpEqual, i.toString() + '=');
-                    const regExpNotEqual = new RegExp(fieldName + '!=', 'g');
-                    query = query.replace(regExpNotEqual, i.toString() + '!=');
+                    // Use a regex that captures the field name and any of the valid operators that follow it.
+                    // The \b ensures we match whole words only, preventing "ID" from matching "ORDER BY ID".
+                    const regex = new RegExp(`\\b${fieldName}\\b(\\s*(?:>=|<=|!=|=|>|<))`, 'g');
+                    query = query.replace(regex, `${i}$1`);
                 }
-                
                 // Loop through the data and add matches to the result
                 for (let d = 0; d < this._table.length; d++) {
                     if (!Array.isArray(this._table[d])) {
                         continue; // Skip invalid rows
                     }
-                    
                     // Convert the query into a string of boolean logic
                     const booleanExpression = replaceAndEvaluateExpressions(
                         this._table[d], 
+                        this._fields, 
                         query, 
                         queryFunctions
                     );
+                    
+                    // Check if replaceAndEvaluateExpressions returned an error
+                    if (booleanExpression.startsWith('ERROR_')) {
+                        // Return error immediately instead of continuing
+                        let errorMessage = 'Query evaluation failed';
+                        if (booleanExpression === 'ERROR_UNQUOTED_VALUE') {
+                            errorMessage = 'Query syntax error: Values must be quoted (e.g., field=\'value\' not field=value)';
+                        }
+                        return { 
+                            success: false, 
+                            table: [], 
+                            indices: [], 
+                            error: errorMessage 
+                        };
+                    }
                     
                     // Evaluate the entire expression
                     const result = evaluateNestedExpression(booleanExpression);
@@ -1289,20 +1268,10 @@
                     }
                 }
                 
-                return {
-                    success: true,
-                    table: resultData,
-                    indices: resultIndices,
-                    error: null
-                };
+                return { success: true, table: resultData, indices: resultIndices, error: null };
                 
             } catch (error) {
-                return {
-                    success: false,
-                    table: [],
-                    indices: [],
-                    error: 'Failed to execute WHERE clause: ' + error.message
-                };
+                return { success: false, table: [], indices: [], error: 'Failed to execute WHERE clause: ' + error.message };
             }
         }
         
@@ -2708,6 +2677,97 @@
         }
         
         /**
+         * Replaces values in specified fields using a query pattern
+         * @param {string|RegExp} query - The pattern to search for (string will be converted to case-insensitive global RegExp)
+         * @param {*} newValue - The value to replace matches with
+         * @param {Array<string|number>|string|number} [fields] - Fields to search in (defaults to all fields)
+         * @returns {DataMaster} this for chaining
+         */
+        replace(query, newValue, fields) {
+            if (!Array.isArray(this._table) || !Array.isArray(this._fields)) {
+                return this._handleError('Invalid table or fields state', 'StateError', 'DataMaster');
+            }
+            
+            if (typeof query === 'undefined') {
+                return this._handleError('Query parameter is required', 'UserError', 'DataMaster');
+            }
+            
+            if (typeof newValue === 'undefined') {
+                return this._handleError('New value parameter is required', 'UserError', 'DataMaster');
+            }
+            
+            // Default to all fields if none specified
+            if (typeof fields === 'undefined') {
+                fields = this._fields;
+            }
+            
+            // Convert single field to array
+            if (!Array.isArray(fields)) {
+                fields = [fields];
+            }
+            
+            // Convert string query to case-insensitive global RegExp
+            let regex;
+            if (!(query instanceof RegExp)) {
+                try {
+                    regex = new RegExp(query.toString(), 'ig');
+                } catch (error) {
+                    return this._handleError('Invalid query pattern: ' + error.message, 'UserError', 'DataMaster');
+                }
+            } else {
+                regex = query;
+            }
+            
+            try {
+                // Process each specified field
+                for (let f = 0; f < fields.length; f++) {
+                    let columnIndex;
+                    
+                    // Handle field parameter (string or number)
+                    if (typeof fields[f] === 'number') {
+                        if (fields[f] < 0 || fields[f] >= this._fields.length) {
+                            continue; // Skip invalid column indexes
+                        }
+                        columnIndex = fields[f];
+                    } else if (typeof fields[f] === 'string') {
+                        columnIndex = this._fields.indexOf(fields[f]);
+                        if (columnIndex === -1) {
+                            continue; // Skip fields that don't exist
+                        }
+                    } else {
+                        continue; // Skip invalid field references
+                    }
+                    
+                    // Process each row in the column
+                    for (let row = 0; row < this._table.length; row++) {
+                        if (!Array.isArray(this._table[row])) {
+                            continue; // Skip invalid rows
+                        }
+                        
+                        let cell = this._table[row][columnIndex];
+                        
+                        // Treat null/undefined as empty string for replacement
+                        if (cell === null || cell === undefined) {
+                            cell = '';
+                        }
+                        
+                        // Perform the replacement
+                        try {
+                            this._table[row][columnIndex] = cell.toString().replace(regex, newValue);
+                        } catch (replaceError) {
+                            // Continue processing other cells if one replacement fails
+                            continue;
+                        }
+                    }
+                }
+            } catch (error) {
+                return this._handleError('Failed to replace values: ' + error.message, 'InternalError', 'DataMaster');
+            }
+            
+            return this; // For chaining
+        }
+        
+        /**
          * Limits the DataMaster to only rows that match the filter criteria (destructive operation)
          * @param {Object|Function} filter - Object with field-value pairs for AND filtering, or function that receives row object
          * @returns {DataMaster} this for chaining
@@ -2963,7 +3023,7 @@
          * Unified query engine for declarative data manipulation.
          * Adheres to the mutability contract: 'select' returns a new instance,
          * while 'update' and 'delete' modify the instance in-place and return `this`.
-         * @param {string} verb - The actionodtn to perform: 'select', 'update', or 'delete'.
+         * @param {string} verb - The action to perform: 'select', 'update', or 'delete'.
          * @param {Object} options - Configuration object for the query.
          * @returns {DataMaster|this} A new DataMaster instance for 'select', or `this` for mutators.
          */
@@ -2997,7 +3057,12 @@
             // 1. WHERE clause: Filter the rows (destructive on the clone).
             if (options.where) {
                 if (typeof options.where === 'string') {
-                    tempDM.limitWhere(options.where, options.queryFunctions);
+                    const whereResult = tempDM.limitWhere(options.where, options.queryFunctions);
+                    
+                    // Check if limitWhere returned an error DataMaster
+                    if (whereResult._fields.includes('ErrorType')) {
+                        return whereResult; // Return the error DataMaster immediately
+                    }
                 } else {
                     tempDM.limit(options.where);
                 }
@@ -3021,6 +3086,34 @@
                     }
                     tempDM.reorder(fieldsToSelect);
                 }
+            }
+
+            // 4. PAGINATION: Apply limit and offset.
+            if (options.limit !== undefined || options.offset !== undefined) {
+                const offset = options.offset || 0;
+                const limit = options.limit;
+                
+                // Validate offset
+                if (typeof offset !== 'number' || offset < 0 || !Number.isInteger(offset)) {
+                    return this._handleError('Offset must be a non-negative integer', 'UserError', 'DataMaster');
+                }
+                
+                // Validate limit (if provided)
+                if (limit !== undefined && (typeof limit !== 'number' || limit < 0 || !Number.isInteger(limit))) {
+                    return this._handleError('Limit must be a non-negative integer', 'UserError', 'DataMaster');
+                }
+                
+                // Apply pagination by slicing the table data
+                const currentTable = tempDM._table;
+                let paginatedTable;
+                
+                if (limit !== undefined) {
+                    paginatedTable = currentTable.slice(offset, offset + limit);
+                } else {
+                    paginatedTable = currentTable.slice(offset);
+                }
+                
+                tempDM._table = paginatedTable;
             }
             
             // Return the fully transformed clone.

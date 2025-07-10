@@ -143,3 +143,9 @@ dist
 __snapshots__/
 snapshot.exe
 .snapshotignore
+
+# claude files
+CLAUDE.md
+
+#dev files
+dev-archive/

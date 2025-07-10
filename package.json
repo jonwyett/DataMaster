@@ -1,7 +1,7 @@
 {
   "name": "jw-datamaster",
-  "version": "3.2.1",
-  "description": "Class for managing database-style data",
+  "version": "5.0.0",
+  "description": "A powerful JavaScript Swiss Army Knife for database-style data manipulation with SQL-like querying, filtering, sorting, and transformation capabilities. Supports recordsets, tables, CSV, and advanced query operations including WHERE clauses, ORDER BY, pagination, custom functions, and programmatic filtering.",
   "main": "datamaster.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -11,19 +11,40 @@
     "url": "git+https://github.com/jonwyett/DataMaster.git"
   },
   "keywords": [
-    "data",
-    "manipulate",
-    "search",
-    "convert",
-    "query",
-    "mysql",
+    "data-manipulation",
+    "sql-like",
+    "query-engine", 
+    "database",
+    "recordset",
+    "table",
     "csv",
-    "sql"
+    "filtering",
+    "sorting",
+    "pagination",
+    "where-clause",
+    "data-processing",
+    "javascript",
+    "node",
+    "browser",
+    "pivot",
+    "transform",
+    "search",
+    "wildcard",
+    "custom-functions"
   ],
   "author": "Jonathan Wyett",
   "license": "ISC",
   "bugs": {
     "url": "https://github.com/jonwyett/DataMaster/issues"
   },
-  "homepage": "https://github.com/jonwyett/DataMaster#readme"
+  "homepage": "https://github.com/jonwyett/DataMaster#readme",
+  "engines": {
+    "node": ">=12.0.0"
+  },
+  "files": [
+    "datamaster.js",
+    "docs/",
+    "README.md",
+    "LICENSE"
+  ]
 }
