@@ -1436,26 +1436,6 @@
             return new DataMaster(result.table, result.fields, options);
         }
         
-        /**
-         * Creates a DataMaster from a generator template
-         * @param {Object} template - Generator template
-         * @param {Object} options - Configuration options
-         * @returns {DataMaster} New DataMaster instance
-         */
-        static fromGenerator(template, options = {}) {
-            const dm = new DataMaster([], [], options);
-            
-            if (typeof template !== 'object' || template === null) {
-                return dm._handleError('Template must be an object', 'UserError', 'DataMaster');
-            }
-            
-            // Placeholder for TableGenerator integration
-            // const generator = new TableGenerator();
-            // const table = generator.generate(template);
-            // return DataMaster.fromTable(table, options);
-            
-            return dm._handleError('Generator not yet implemented', 'NotImplemented', 'DataMaster');
-        }
         
         // --- Pure Serialization Methods (Non-Mutating) ---
         
@@ -3204,8 +3184,6 @@
         tableToCsv
     };
     
-    // --- TableGenerator Class Placeholder ---
-    // class TableGenerator { ... }
     
     // --- Public API Assembly ---
     
@@ -3217,7 +3195,6 @@
             fromTable: DataMaster.fromTable.bind(DataMaster),
             fromRecordset: DataMaster.fromRecordset.bind(DataMaster),
             fromCsv: DataMaster.fromCsv.bind(DataMaster),
-            fromGenerator: DataMaster.fromGenerator.bind(DataMaster),
             converters
         });
         
@@ -3228,7 +3205,6 @@
             fromTable: DataMaster.fromTable.bind(DataMaster),
             fromRecordset: DataMaster.fromRecordset.bind(DataMaster),
             fromCsv: DataMaster.fromCsv.bind(DataMaster),
-            fromGenerator: DataMaster.fromGenerator.bind(DataMaster),
             converters
         });
         

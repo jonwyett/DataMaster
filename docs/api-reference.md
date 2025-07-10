@@ -8,7 +8,6 @@ This document provides a detailed reference for all public classes and methods i
   - [Static Factory Methods (Creation)](#static-factory-methods-creation)
   - [Instance Methods: Mutators](#instance-methods-mutators)
   - [Instance Methods: Accessors & Selectors](#instance-methods-accessors--selectors)
-- [The TableGenerator Class](#the-tablegenerator-class)
 - [Top-Level Utility Functions](#top-level-utility-functions)
 
 ## The DataMaster Class
@@ -73,33 +72,6 @@ const csv = "Name,Age\nAlice,23\nBob,42";
 const dm = DataMaster.fromCsv(csv, { headersInFirstRow: true });
 ```
 
-#### `DataMaster.fromGenerator(template, options)`
-
-Creates a DataMaster instance with mock data using the built-in TableGenerator.
-
-**Parameters:**
-- `template` (Object): The generator template object.
-- `options` (Object, optional): Configuration object.
-  - `library` (Object): A custom data library to merge with the default.
-  - `errorMode`, `onError`: Error handling options.
-
-**Returns:** `DataMaster` - A new DataMaster instance.
-
-**Example:**
-```javascript
-const template = { 
-  settings: { rows: 5 }, 
-  template: { 
-    name: { 
-      autoGenerate: { 
-        type: 'library', 
-        value: 'firstName' 
-      } 
-    } 
-  } 
-};
-const dm = DataMaster.fromGenerator(template);
-```
 
 ### Instance Methods: Mutators
 
@@ -349,29 +321,11 @@ Exports the data as a CSV formatted string.
 const csv = dm.toCsv();
 ```
 
-## The TableGenerator Class
-
-A class for generating mock data. Usually used via `DataMaster.fromGenerator()`.
-
-*A brief description of its generate method would go here.*
 
 ## Top-Level Utility Functions
 
 Convenience functions available on the main DataMaster object.
 
-### `DataMaster.generate(template)`
-
-A stateless wrapper around the TableGenerator for quick mock data creation.
-
-**Parameters:**
-- `template` (Object): The generator template.
-
-**Returns:** `Array<Array>` - The generated data table.
-
-**Example:**
-```javascript
-const mockData = DataMaster.generate(myTemplate);
-```
 
 ### `DataMaster.converters`
 
