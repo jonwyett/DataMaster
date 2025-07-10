@@ -146,6 +146,7 @@ snapshot.exe
 
 # claude files
 CLAUDE.md
+.claude
 
 #dev files
 dev-archive/

@@ -1,8 +1,7 @@
 /**
- * DataMaster v2.1 - Core Scaffold with Upgraded Query Engine
- * A powerful, intuitive Swiss Army Knife for JavaScript data manipulation.
- * Now incorporates the advanced parsing and execution logic from DataQuery.
- */
+ * ver 5.0.0 25/07/10
+ * - total refactor and major upgrade
+**/
 
 (function(global) {
     'use strict';
