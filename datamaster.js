@@ -1,13 +1,3 @@
-/**
- * ver 5.1.0 25/07/16
- * - add slice
- * - add splice
- * ver 5.0.1 25/07/10
- * - remove refreces to table generator
- * ver 5.0.0 25/07/10
- * - total refactor and major upgrade
-**/
-
 (function(global) {
     'use strict';
 
